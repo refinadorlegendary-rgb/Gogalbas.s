@@ -14,22 +14,8 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 
 /**
- * Servicio en primer plano que aplica el motor de graves ("lowshelf + punch + limiter",
- * el mismo diseño que corregimos en la versión de navegador) al AUDIO GLOBAL del
- * dispositivo (audioSessionId = 0), no a una sola app. Así afecta a Spotify, YouTube
- * Music, o cualquier reproductor que esté sonando en ese momento.
- *
- * IMPORTANTE — limitaciones reales del sistema, no de este código:
- * - audioSessionId = 0 representa el "mix" de salida global. Crear efectos ahí es una
- *   API pública de Android, pero algunos fabricantes (Samsung con Adapt Sound, por
- *   ejemplo) restringen o ignoran efectos globales de apps de terceros.
- * - Si la app de música usa reproducción "offloaded" (audio comprimido enviado
- *   directo al DSP de hardware, común para ahorrar batería en reproducción en
- *   segundo plano), los efectos de sesión pueden no aplicarse. Esto no tiene
- *   solución desde una app normal sin root.
- * - DynamicsProcessing (la API que replica mejor nuestro diseño lowshelf+punch+
- *   limiter) requiere Android 9 (API 28) o superior. En versiones anteriores se
- *   usa un fallback con BassBoost + Equalizer, que es más limitado pero funcional.
+ * Servicio en primer plano que aplica el motor de graves ("lowshelf + punch + limiter")
+ * al AUDIO GLOBAL del dispositivo (audioSessionId = 0).
  */
 class GlobalBassService : Service() {
 
@@ -72,10 +58,6 @@ class GlobalBassService : Service() {
         super.onDestroy()
     }
 
-    // ---------------------------------------------------------------------
-    // Construcción de la cadena de efectos sobre el mix global (sesión 0)
-    // ---------------------------------------------------------------------
-
     private fun setupGlobalEffectChain() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             if (trySetupDynamicsProcessing()) {
@@ -83,8 +65,6 @@ class GlobalBassService : Service() {
                 return
             }
         }
-        // Fallback para Android < 9, o si DynamicsProcessing no está disponible
-        // en este dispositivo/fabricante.
         trySetupLegacyFallback()
     }
 
@@ -94,10 +74,10 @@ class GlobalBassService : Service() {
             val config = DynamicsProcessing.Config.Builder(
                 DynamicsProcessing.VARIANT_FAVOR_FREQUENCY_RESOLUTION,
                 channelCount,
-                true, 1,   // preEq activo, 1 banda -> nuestro "grave shelf"
-                true, 1,   // mbc activo, 1 banda -> nuestro "punch" ~100Hz
-                false, 0,  // sin postEq
-                true       // limiter activo -> nuestro brick-wall final
+                true, 1,   
+                true, 1,   
+                false, 0,  
+                true       
             ).build()
 
             val dp = DynamicsProcessing(0, 0, config)
@@ -106,22 +86,32 @@ class GlobalBassService : Service() {
                 val preEqBand = DynamicsProcessing.EqBand(true, 70f, 0f)
                 dp.setPreEqBandAllChannelsTo(0, preEqBand)
 
+                // Constructor corregido de MbcBand (parámetros exactos de Android API)
                 val mbcBand = DynamicsProcessing.MbcBand(
                     true,     // enabled
-                    100f,     // cutoffFrequency (límite superior de la banda)
-                    -20f,     // attackTime placeholder se ajusta abajo con setters reales
-                    50f, 0.5f, 1f, 0f, 0f, 0f
+                    100f,     // cutoffFrequency
+                    2f,       // attackTime (ms)
+                    50f,      // releaseTime (ms)
+                    2f,       // ratio
+                    0f,       // threshold
+                    0f,       // kneeWidth
+                    0f,       // noiseGateThreshold
+                    0f,       // expanderRatio
+                    0f,       // preGain
+                    0f        // postGain
                 )
                 dp.setMbcBandAllChannelsTo(0, mbcBand)
             }
 
+            // Constructor corregido de Limiter (parámetros exactos de Android API)
             val limiter = DynamicsProcessing.Limiter(
                 true,   // enabled
-                true,   // linked entre canales
-                1,      // attackTime (ms) -> rápido, como nuestro limitador de 1ms
-                50,     // releaseTime (ms)
-                20f,    // ratio 20:1
-                -3f,    // threshold dB
+                true,   // linked
+                1,      // linkGroup
+                1f,     // attackTime (ms)
+                50f,    // releaseTime (ms)
+                20f,    // ratio
+                -3f,    // threshold
                 0f      // postGain
             )
             for (ch in 0 until channelCount) {
@@ -132,7 +122,7 @@ class GlobalBassService : Service() {
             dynamicsProcessing = dp
             true
         } catch (e: Exception) {
-            Log.w("GlobalBassService", "DynamicsProcessing no disponible en este dispositivo: ${e.message}")
+            Log.w("GlobalBassService", "DynamicsProcessing no disponible: ${e.message}")
             dynamicsProcessing?.release()
             dynamicsProcessing = null
             false
@@ -151,17 +141,9 @@ class GlobalBassService : Service() {
                 enabled = true
             }
         } catch (e: Exception) {
-            Log.e(
-                "GlobalBassService",
-                "No se pudo crear ningún efecto de audio global en este dispositivo: ${e.message}"
-            )
+            Log.e("GlobalBassService", "No se pudo crear fallback: ${e.message}")
         }
     }
-
-    // ---------------------------------------------------------------------
-    // Aplicar nivel de graves (0..100) — misma lógica que la versión web:
-    // shelf de graves + punch, con headroom automático para no distorsionar.
-    // ---------------------------------------------------------------------
 
     private fun applyBassLevel(level: Int) {
         currentLevel = level.coerceIn(0, 100)
@@ -172,14 +154,9 @@ class GlobalBassService : Service() {
             val subDb = t * MAX_SUB_BOOST_DB
             val band = DynamicsProcessing.EqBand(true, 70f, subDb)
             dp.setPreEqBandAllChannelsTo(0, band)
-            // El limiter ya está fijo en -3dB / 20:1 y absorbe el headroom,
-            // así que no hace falta bajar el volumen general a mano aquí.
         } else {
-            // Fallback: BassBoost.setStrength admite 0..1000
             bassBoost?.setStrength((t * 1000).toInt().toShort())
-            // Compensa un poco el volumen general para evitar saturación,
-            // igual que hacíamos con el preGain en la versión de navegador.
-            loudnessEnhancer?.setTargetGain((-t * 300).toInt()) // en milibeles, valor negativo = atenuar
+            loudnessEnhancer?.setTargetGain((-t * 300).toInt())
         }
 
         updateNotification()
@@ -191,10 +168,6 @@ class GlobalBassService : Service() {
         equalizer?.release()
         loudnessEnhancer?.release()
     }
-
-    // ---------------------------------------------------------------------
-    // Notificación persistente (obligatoria para un foreground service)
-    // ---------------------------------------------------------------------
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
