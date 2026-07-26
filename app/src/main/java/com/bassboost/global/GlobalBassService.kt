@@ -91,51 +91,74 @@ class GlobalBassService : Service() {
     private fun trySetupDynamicsProcessing(): Boolean {
         return try {
             val channelCount = 2
+            // ANTES: 1 sola banda de EQ y de compresión con "cutoff" en 55/120Hz.
+            // Con una sola banda, esa banda cubre TODO el espectro (no solo el
+            // grave) porque no hay una segunda banda que la limite por arriba.
+            // Resultado: el boost y la compresión se aplicaban también a voces,
+            // medios y agudos -> sonido apagado/"ronco", no bajo limpio.
+            // AHORA: 3 bandas explícitas, para que el boost y la compresión
+            // queden aislados al grave y el resto del espectro pase intacto.
             val config = DynamicsProcessing.Config.Builder(
                 DynamicsProcessing.VARIANT_FAVOR_FREQUENCY_RESOLUTION,
                 channelCount,
-                true, 1,   // preEq activo, 1 banda -> nuestro "grave shelf"
-                true, 1,   // mbc activo, 1 banda -> nuestro "punch" ~100Hz
+                true, 3,   // preEq: banda0 sub-grave, banda1 punch, banda2 resto (plana)
+                true, 3,   // mbc: mismo esquema de 3 bandas
                 false, 0,  // sin postEq
-                true       // limiter activo -> nuestro brick-wall final
+                true       // limiter final -> brick-wall de seguridad
             ).build()
 
             val dp = DynamicsProcessing(0, 0, config)
 
             for (ch in 0 until channelCount) {
-                val preEqBand = DynamicsProcessing.EqBand(true, 55f, 0f)
-                dp.setPreEqBandAllChannelsTo(0, preEqBand)
+                // --- EQ: banda 0 = 0-60Hz (sub-grave, la que se refuerza) ---
+                dp.setPreEqBandAllChannelsTo(0, DynamicsProcessing.EqBand(true, 60f, 0f))
+                // --- EQ: banda 1 = 60-200Hz (punch, refuerzo menor) ---
+                dp.setPreEqBandAllChannelsTo(1, DynamicsProcessing.EqBand(true, 200f, 0f))
+                // --- EQ: banda 2 = 200Hz-Nyquist, SIEMPRE en 0dB -> voces/medios/
+                //     agudos quedan intactos, sin boost ni coloración ---
+                dp.setPreEqBandAllChannelsTo(2, DynamicsProcessing.EqBand(true, 20000f, 0f))
 
-                // FIX: attack de 12ms (antes 1ms) — un grave de 100-120Hz dura ~8-10ms
-                // por ciclo; con attack más rápido que eso, el compresor recorta cada
-                // media onda individual en vez de solo controlar el nivel general.
-                // Eso es literalmente distorsión de forma de onda, no "volumen alto".
-                val mbcBand = DynamicsProcessing.MbcBand(
-                    true,     // enabled
-                    120f,     // cutoffFrequency
-                    12f,      // attackTime (ms) — más lento que un ciclo de 120Hz
-                    120f,     // releaseTime (ms)
-                    2f,       // ratio — más suave que 4:1, evita "pumping" audible
-                    -10f,     // threshold — menos agresivo que -16dB
-                    6f,       // kneeWidth — transición ancha, sin "click"
-                    0f, 0f,   // noiseGateThreshold, expanderRatio
-                    0f, 0f    // preGain, postGain
+                // --- MBC banda 0: compresión suave solo del sub-grave, para
+                //     controlar el pico que genera el boost sin recortar la onda ---
+                dp.setMbcBandAllChannelsTo(
+                    0,
+                    DynamicsProcessing.MbcBand(
+                        true, 60f,
+                        12f, 120f,   // attack/release (ms) — más lentos que un ciclo de 60Hz
+                        2f, -10f, 6f,
+                        0f, 0f, 0f, 0f
+                    )
                 )
-                dp.setMbcBandAllChannelsTo(0, mbcBand)
+                // --- MBC banda 1: un poco de control en la zona de punch ---
+                dp.setMbcBandAllChannelsTo(
+                    1,
+                    DynamicsProcessing.MbcBand(
+                        true, 200f,
+                        10f, 100f,
+                        1.5f, -8f, 4f,
+                        0f, 0f, 0f, 0f
+                    )
+                )
+                // --- MBC banda 2: DESACTIVADA -> el resto del espectro pasa sin
+                //     compresión, que es justo lo que faltaba antes ---
+                dp.setMbcBandAllChannelsTo(
+                    2,
+                    DynamicsProcessing.MbcBand(
+                        false, 20000f,
+                        10f, 100f, 1f, 0f, 0f, 0f, 0f, 0f, 0f
+                    )
+                )
             }
 
-            // FIX: attack de 5ms (antes 0.5ms) — un grave de 55-70Hz dura ~14-18ms
-            // por ciclo. Un limitador que reacciona en menos de un milisegundo
-            // termina "cortando" la propia onda de grave, que es la distorsión que
-            // se escuchaba. 5ms sigue siendo lo bastante rápido para atrapar picos,
-            // pero ya no altera la forma del ciclo de bajo.
+            // Limitador final sobre la mezcla completa, como red de seguridad
+            // (attack lento para no recortar el propio ciclo del grave).
             val limiter = DynamicsProcessing.Limiter(
                 true,   // enabled
                 true,   // linked entre canales
                 1,      // linkGroup
                 5f,     // attackTime (ms)
                 90f,    // releaseTime (ms)
-                14f,    // ratio — algo menos extremo que 20:1, suena más transparente
+                14f,    // ratio
                 -4f,    // threshold dB
                 0f      // postGain
             )
@@ -185,10 +208,12 @@ class GlobalBassService : Service() {
         if (usingDynamicsProcessing && dynamicsProcessing != null) {
             val dp = dynamicsProcessing!!
             val subDb = t * MAX_SUB_BOOST_DB
-            val band = DynamicsProcessing.EqBand(true, 55f, subDb)
-            dp.setPreEqBandAllChannelsTo(0, band)
-            // El limiter ya está fijo en -3dB / 20:1 y absorbe el headroom,
-            // así que no hace falta bajar el volumen general a mano aquí.
+            val punchDb = t * MAX_PUNCH_BOOST_DB
+            // Solo movemos banda 0 (sub-grave) y banda 1 (punch). La banda 2
+            // (200Hz-Nyquist) nunca se toca: se quedó fija en 0dB desde la
+            // inicialización, así que voces/medios/agudos siempre quedan limpios.
+            dp.setPreEqBandAllChannelsTo(0, DynamicsProcessing.EqBand(true, 60f, subDb))
+            dp.setPreEqBandAllChannelsTo(1, DynamicsProcessing.EqBand(true, 200f, punchDb))
         } else {
             // Fallback: BassBoost.setStrength admite 0..1000
             bassBoost?.setStrength((t * 1000).toInt().toShort())
