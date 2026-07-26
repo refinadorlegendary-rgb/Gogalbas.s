@@ -1,0 +1,153 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="com.bassboost.global"
+4    android:versionCode="1"
+5    android:versionName="1.0" >
+6
+7    <uses-sdk
+8        android:minSdkVersion="26"
+9        android:targetSdkVersion="34" />
+10
+11    <!-- Necesario para crear/controlar efectos de audio (Equalizer, BassBoost, etc.) -->
+12    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+12-->/storage/emulated/0/Download/GlobalBassBoost/GlobalBassBoost/app/src/main/AndroidManifest.xml:5:5-80
+12-->/storage/emulated/0/Download/GlobalBassBoost/GlobalBassBoost/app/src/main/AndroidManifest.xml:5:22-77
+13
+14    <!--
+15         El servicio debe correr en primer plano para que el efecto global
+16         de audio se mantenga activo mientras suena música en otra app.
+17    -->
+18    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+18-->/storage/emulated/0/Download/GlobalBassBoost/GlobalBassBoost/app/src/main/AndroidManifest.xml:9:5-77
+18-->/storage/emulated/0/Download/GlobalBassBoost/GlobalBassBoost/app/src/main/AndroidManifest.xml:9:22-74
+19    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+19-->/storage/emulated/0/Download/GlobalBassBoost/GlobalBassBoost/app/src/main/AndroidManifest.xml:10:5-92
+19-->/storage/emulated/0/Download/GlobalBassBoost/GlobalBassBoost/app/src/main/AndroidManifest.xml:10:22-89
+20
+21    <!-- Requerido en Android 13+ para poder mostrar la notificación persistente del servicio -->
+22    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+22-->/storage/emulated/0/Download/GlobalBassBoost/GlobalBassBoost/app/src/main/AndroidManifest.xml:13:5-77
+22-->/storage/emulated/0/Download/GlobalBassBoost/GlobalBassBoost/app/src/main/AndroidManifest.xml:13:22-74
+23
+24    <permission
+24-->[androidx.core:core:1.13.1] /data/data/com.termux/files/home/.gradle/caches/9.6.1/transforms/61482426efa3ef4b091136167ab460cf/transformed/core-1.13.1/AndroidManifest.xml:22:5-24:47
+25        android:name="com.bassboost.global.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+25-->[androidx.core:core:1.13.1] /data/data/com.termux/files/home/.gradle/caches/9.6.1/transforms/61482426efa3ef4b091136167ab460cf/transformed/core-1.13.1/AndroidManifest.xml:23:9-81
+26        android:protectionLevel="signature" />
+26-->[androidx.core:core:1.13.1] /data/data/com.termux/files/home/.gradle/caches/9.6.1/transforms/61482426efa3ef4b091136167ab460cf/transformed/core-1.13.1/AndroidManifest.xml:24:9-44
+27
+28    <uses-permission android:name="com.bassboost.global.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
+28-->[androidx.core:core:1.13.1] /data/data/com.termux/files/home/.gradle/caches/9.6.1/transforms/61482426efa3ef4b091136167ab460cf/transformed/core-1.13.1/AndroidManifest.xml:26:5-97
+28-->[androidx.core:core:1.13.1] /data/data/com.termux/files/home/.gradle/caches/9.6.1/transforms/61482426efa3ef4b091136167ab460cf/transformed/core-1.13.1/AndroidManifest.xml:26:22-94
+29
+30    <application
+30-->/storage/emulated/0/Download/GlobalBassBoost/GlobalBassBoost/app/src/main/AndroidManifest.xml:15:5-36:19
+31        android:allowBackup="true"
+31-->/storage/emulated/0/Download/GlobalBassBoost/GlobalBassBoost/app/src/main/AndroidManifest.xml:16:9-35
+32        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
+32-->[androidx.core:core:1.13.1] /data/data/com.termux/files/home/.gradle/caches/9.6.1/transforms/61482426efa3ef4b091136167ab460cf/transformed/core-1.13.1/AndroidManifest.xml:28:18-86
+33        android:debuggable="true"
+34        android:extractNativeLibs="false"
+35        android:icon="@mipmap/ic_launcher"
+35-->/storage/emulated/0/Download/GlobalBassBoost/GlobalBassBoost/app/src/main/AndroidManifest.xml:17:9-43
+36        android:label="@string/app_name"
+36-->/storage/emulated/0/Download/GlobalBassBoost/GlobalBassBoost/app/src/main/AndroidManifest.xml:18:9-41
+37        android:supportsRtl="true"
+37-->/storage/emulated/0/Download/GlobalBassBoost/GlobalBassBoost/app/src/main/AndroidManifest.xml:20:9-35
+38        android:theme="@style/Theme.GlobalBassBoost" >
+38-->/storage/emulated/0/Download/GlobalBassBoost/GlobalBassBoost/app/src/main/AndroidManifest.xml:19:9-53
+39        <activity
+39-->/storage/emulated/0/Download/GlobalBassBoost/GlobalBassBoost/app/src/main/AndroidManifest.xml:22:9-29:20
+40            android:name="com.bassboost.global.MainActivity"
+40-->/storage/emulated/0/Download/GlobalBassBoost/GlobalBassBoost/app/src/main/AndroidManifest.xml:23:13-41
+41            android:exported="true" >
+41-->/storage/emulated/0/Download/GlobalBassBoost/GlobalBassBoost/app/src/main/AndroidManifest.xml:24:13-36
+42            <intent-filter>
+42-->/storage/emulated/0/Download/GlobalBassBoost/GlobalBassBoost/app/src/main/AndroidManifest.xml:25:13-28:29
+43                <action android:name="android.intent.action.MAIN" />
+43-->/storage/emulated/0/Download/GlobalBassBoost/GlobalBassBoost/app/src/main/AndroidManifest.xml:26:17-69
+43-->/storage/emulated/0/Download/GlobalBassBoost/GlobalBassBoost/app/src/main/AndroidManifest.xml:26:25-66
+44
+45                <category android:name="android.intent.category.LAUNCHER" />
+45-->/storage/emulated/0/Download/GlobalBassBoost/GlobalBassBoost/app/src/main/AndroidManifest.xml:27:17-77
+45-->/storage/emulated/0/Download/GlobalBassBoost/GlobalBassBoost/app/src/main/AndroidManifest.xml:27:27-74
+46            </intent-filter>
+47        </activity>
+48
+49        <service
+49-->/storage/emulated/0/Download/GlobalBassBoost/GlobalBassBoost/app/src/main/AndroidManifest.xml:31:9-34:40
+50            android:name="com.bassboost.global.GlobalBassService"
+50-->/storage/emulated/0/Download/GlobalBassBoost/GlobalBassBoost/app/src/main/AndroidManifest.xml:32:13-46
+51            android:exported="false"
+51-->/storage/emulated/0/Download/GlobalBassBoost/GlobalBassBoost/app/src/main/AndroidManifest.xml:34:13-37
+52            android:foregroundServiceType="mediaPlayback" />
+52-->/storage/emulated/0/Download/GlobalBassBoost/GlobalBassBoost/app/src/main/AndroidManifest.xml:33:13-58
+53
+54        <provider
+54-->[androidx.emoji2:emoji2:1.3.0] /data/data/com.termux/files/home/.gradle/caches/9.6.1/transforms/973ffb3c378a0e49f4c22cab3b8d0bfd/transformed/emoji2-1.3.0/AndroidManifest.xml:24:9-32:20
+55            android:name="androidx.startup.InitializationProvider"
+55-->[androidx.emoji2:emoji2:1.3.0] /data/data/com.termux/files/home/.gradle/caches/9.6.1/transforms/973ffb3c378a0e49f4c22cab3b8d0bfd/transformed/emoji2-1.3.0/AndroidManifest.xml:25:13-67
+56            android:authorities="com.bassboost.global.androidx-startup"
+56-->[androidx.emoji2:emoji2:1.3.0] /data/data/com.termux/files/home/.gradle/caches/9.6.1/transforms/973ffb3c378a0e49f4c22cab3b8d0bfd/transformed/emoji2-1.3.0/AndroidManifest.xml:26:13-68
+57            android:exported="false" >
+57-->[androidx.emoji2:emoji2:1.3.0] /data/data/com.termux/files/home/.gradle/caches/9.6.1/transforms/973ffb3c378a0e49f4c22cab3b8d0bfd/transformed/emoji2-1.3.0/AndroidManifest.xml:27:13-37
+58            <meta-data
+58-->[androidx.emoji2:emoji2:1.3.0] /data/data/com.termux/files/home/.gradle/caches/9.6.1/transforms/973ffb3c378a0e49f4c22cab3b8d0bfd/transformed/emoji2-1.3.0/AndroidManifest.xml:29:13-31:52
+59                android:name="androidx.emoji2.text.EmojiCompatInitializer"
+59-->[androidx.emoji2:emoji2:1.3.0] /data/data/com.termux/files/home/.gradle/caches/9.6.1/transforms/973ffb3c378a0e49f4c22cab3b8d0bfd/transformed/emoji2-1.3.0/AndroidManifest.xml:30:17-75
+60                android:value="androidx.startup" />
+60-->[androidx.emoji2:emoji2:1.3.0] /data/data/com.termux/files/home/.gradle/caches/9.6.1/transforms/973ffb3c378a0e49f4c22cab3b8d0bfd/transformed/emoji2-1.3.0/AndroidManifest.xml:31:17-49
+61            <meta-data
+61-->[androidx.lifecycle:lifecycle-process:2.6.2] /data/data/com.termux/files/home/.gradle/caches/9.6.1/transforms/be66b44eb56cac14fce4541b51ed08f2/transformed/lifecycle-process-2.6.2/AndroidManifest.xml:29:13-31:52
+62                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
+62-->[androidx.lifecycle:lifecycle-process:2.6.2] /data/data/com.termux/files/home/.gradle/caches/9.6.1/transforms/be66b44eb56cac14fce4541b51ed08f2/transformed/lifecycle-process-2.6.2/AndroidManifest.xml:30:17-78
+63                android:value="androidx.startup" />
+63-->[androidx.lifecycle:lifecycle-process:2.6.2] /data/data/com.termux/files/home/.gradle/caches/9.6.1/transforms/be66b44eb56cac14fce4541b51ed08f2/transformed/lifecycle-process-2.6.2/AndroidManifest.xml:31:17-49
+64            <meta-data
+64-->[androidx.profileinstaller:profileinstaller:1.3.1] /data/data/com.termux/files/home/.gradle/caches/9.6.1/transforms/412539220fcd63f92829739c116cc968/transformed/profileinstaller-1.3.1/AndroidManifest.xml:29:13-31:52
+65                android:name="androidx.profileinstaller.ProfileInstallerInitializer"
+65-->[androidx.profileinstaller:profileinstaller:1.3.1] /data/data/com.termux/files/home/.gradle/caches/9.6.1/transforms/412539220fcd63f92829739c116cc968/transformed/profileinstaller-1.3.1/AndroidManifest.xml:30:17-85
+66                android:value="androidx.startup" />
+66-->[androidx.profileinstaller:profileinstaller:1.3.1] /data/data/com.termux/files/home/.gradle/caches/9.6.1/transforms/412539220fcd63f92829739c116cc968/transformed/profileinstaller-1.3.1/AndroidManifest.xml:31:17-49
+67        </provider>
+68
+69        <receiver
+69-->[androidx.profileinstaller:profileinstaller:1.3.1] /data/data/com.termux/files/home/.gradle/caches/9.6.1/transforms/412539220fcd63f92829739c116cc968/transformed/profileinstaller-1.3.1/AndroidManifest.xml:34:9-52:20
+70            android:name="androidx.profileinstaller.ProfileInstallReceiver"
+70-->[androidx.profileinstaller:profileinstaller:1.3.1] /data/data/com.termux/files/home/.gradle/caches/9.6.1/transforms/412539220fcd63f92829739c116cc968/transformed/profileinstaller-1.3.1/AndroidManifest.xml:35:13-76
+71            android:directBootAware="false"
+71-->[androidx.profileinstaller:profileinstaller:1.3.1] /data/data/com.termux/files/home/.gradle/caches/9.6.1/transforms/412539220fcd63f92829739c116cc968/transformed/profileinstaller-1.3.1/AndroidManifest.xml:36:13-44
+72            android:enabled="true"
+72-->[androidx.profileinstaller:profileinstaller:1.3.1] /data/data/com.termux/files/home/.gradle/caches/9.6.1/transforms/412539220fcd63f92829739c116cc968/transformed/profileinstaller-1.3.1/AndroidManifest.xml:37:13-35
+73            android:exported="true"
+73-->[androidx.profileinstaller:profileinstaller:1.3.1] /data/data/com.termux/files/home/.gradle/caches/9.6.1/transforms/412539220fcd63f92829739c116cc968/transformed/profileinstaller-1.3.1/AndroidManifest.xml:38:13-36
+74            android:permission="android.permission.DUMP" >
+74-->[androidx.profileinstaller:profileinstaller:1.3.1] /data/data/com.termux/files/home/.gradle/caches/9.6.1/transforms/412539220fcd63f92829739c116cc968/transformed/profileinstaller-1.3.1/AndroidManifest.xml:39:13-57
+75            <intent-filter>
+75-->[androidx.profileinstaller:profileinstaller:1.3.1] /data/data/com.termux/files/home/.gradle/caches/9.6.1/transforms/412539220fcd63f92829739c116cc968/transformed/profileinstaller-1.3.1/AndroidManifest.xml:40:13-42:29
+76                <action android:name="androidx.profileinstaller.action.INSTALL_PROFILE" />
+76-->[androidx.profileinstaller:profileinstaller:1.3.1] /data/data/com.termux/files/home/.gradle/caches/9.6.1/transforms/412539220fcd63f92829739c116cc968/transformed/profileinstaller-1.3.1/AndroidManifest.xml:41:17-91
+76-->[androidx.profileinstaller:profileinstaller:1.3.1] /data/data/com.termux/files/home/.gradle/caches/9.6.1/transforms/412539220fcd63f92829739c116cc968/transformed/profileinstaller-1.3.1/AndroidManifest.xml:41:25-88
+77            </intent-filter>
+78            <intent-filter>
+78-->[androidx.profileinstaller:profileinstaller:1.3.1] /data/data/com.termux/files/home/.gradle/caches/9.6.1/transforms/412539220fcd63f92829739c116cc968/transformed/profileinstaller-1.3.1/AndroidManifest.xml:43:13-45:29
+79                <action android:name="androidx.profileinstaller.action.SKIP_FILE" />
+79-->[androidx.profileinstaller:profileinstaller:1.3.1] /data/data/com.termux/files/home/.gradle/caches/9.6.1/transforms/412539220fcd63f92829739c116cc968/transformed/profileinstaller-1.3.1/AndroidManifest.xml:44:17-85
+79-->[androidx.profileinstaller:profileinstaller:1.3.1] /data/data/com.termux/files/home/.gradle/caches/9.6.1/transforms/412539220fcd63f92829739c116cc968/transformed/profileinstaller-1.3.1/AndroidManifest.xml:44:25-82
+80            </intent-filter>
+81            <intent-filter>
+81-->[androidx.profileinstaller:profileinstaller:1.3.1] /data/data/com.termux/files/home/.gradle/caches/9.6.1/transforms/412539220fcd63f92829739c116cc968/transformed/profileinstaller-1.3.1/AndroidManifest.xml:46:13-48:29
+82                <action android:name="androidx.profileinstaller.action.SAVE_PROFILE" />
+82-->[androidx.profileinstaller:profileinstaller:1.3.1] /data/data/com.termux/files/home/.gradle/caches/9.6.1/transforms/412539220fcd63f92829739c116cc968/transformed/profileinstaller-1.3.1/AndroidManifest.xml:47:17-88
+82-->[androidx.profileinstaller:profileinstaller:1.3.1] /data/data/com.termux/files/home/.gradle/caches/9.6.1/transforms/412539220fcd63f92829739c116cc968/transformed/profileinstaller-1.3.1/AndroidManifest.xml:47:25-85
+83            </intent-filter>
+84            <intent-filter>
+84-->[androidx.profileinstaller:profileinstaller:1.3.1] /data/data/com.termux/files/home/.gradle/caches/9.6.1/transforms/412539220fcd63f92829739c116cc968/transformed/profileinstaller-1.3.1/AndroidManifest.xml:49:13-51:29
+85                <action android:name="androidx.profileinstaller.action.BENCHMARK_OPERATION" />
+85-->[androidx.profileinstaller:profileinstaller:1.3.1] /data/data/com.termux/files/home/.gradle/caches/9.6.1/transforms/412539220fcd63f92829739c116cc968/transformed/profileinstaller-1.3.1/AndroidManifest.xml:50:17-95
+85-->[androidx.profileinstaller:profileinstaller:1.3.1] /data/data/com.termux/files/home/.gradle/caches/9.6.1/transforms/412539220fcd63f92829739c116cc968/transformed/profileinstaller-1.3.1/AndroidManifest.xml:50:25-92
+86            </intent-filter>
+87        </receiver>
+88    </application>
+89
+90</manifest>
