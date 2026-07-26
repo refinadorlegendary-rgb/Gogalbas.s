@@ -13,10 +13,6 @@ import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
 
-/**
- * Servicio en primer plano que aplica el motor de graves ("lowshelf + punch + limiter")
- * al AUDIO GLOBAL del dispositivo (audioSessionId = 0).
- */
 class GlobalBassService : Service() {
 
     companion object {
@@ -25,8 +21,8 @@ class GlobalBassService : Service() {
         const val ACTION_SET_LEVEL = "com.bassboost.global.SET_LEVEL"
         const val EXTRA_LEVEL = "level" // 0..100
 
-        const val MAX_SUB_BOOST_DB = 14f
-        const val MAX_PUNCH_BOOST_DB = 6f
+        const val MAX_SUB_BOOST_DB = 10f // Rango seguro para evitar distorsión masiva
+        const val MAX_PUNCH_BOOST_DB = 4f
     }
 
     private var dynamicsProcessing: DynamicsProcessing? = null
@@ -83,36 +79,34 @@ class GlobalBassService : Service() {
             val dp = DynamicsProcessing(0, 0, config)
 
             for (ch in 0 until channelCount) {
-                val preEqBand = DynamicsProcessing.EqBand(true, 70f, 0f)
+                // Filtro inicial de graves profundos en torno a los 45Hz-70Hz
+                val preEqBand = DynamicsProcessing.EqBand(true, 55f, 0f)
                 dp.setPreEqBandAllChannelsTo(0, preEqBand)
 
-                // Constructor corregido de MbcBand (parámetros exactos de Android API)
+                // Compresión multibanda ajustada para control de picos (evita el "tick" o chasquido)
                 val mbcBand = DynamicsProcessing.MbcBand(
-                    true,     // enabled
-                    100f,     // cutoffFrequency
-                    2f,       // attackTime (ms)
-                    50f,      // releaseTime (ms)
-                    2f,       // ratio
-                    0f,       // threshold
-                    0f,       // kneeWidth
-                    0f,       // noiseGateThreshold
-                    0f,       // expanderRatio
-                    0f,       // preGain
-                    0f        // postGain
+                    true,     
+                    120f,     // Corte de frecuencia similar al script web
+                    1f,       // Attack rápido (ms)
+                    100f,     // Release moderado para evitar eco
+                    4f,       // Ratio equilibrado
+                    -16f,     // Threshold de entrada
+                    4f,       // Knee
+                    0f, 0f, 0f, 0f
                 )
                 dp.setMbcBandAllChannelsTo(0, mbcBand)
             }
 
-            // Constructor corregido de Limiter (parámetros exactos de Android API)
+            // Limitador master estricto tipo brick-wall para blindar la salida
             val limiter = DynamicsProcessing.Limiter(
-                true,   // enabled
-                true,   // linked
-                1,      // linkGroup
-                1f,     // attackTime (ms)
-                50f,    // releaseTime (ms)
-                20f,    // ratio
-                -3f,    // threshold
-                0f      // postGain
+                true,   
+                true,   
+                1,      
+                0.5f,   // Ataque ultrarrápido
+                60f,    // Release
+                20f,    // Ratio alto
+                -4.0f,  // Threshold conservador para cero distorsión
+                0f      
             )
             for (ch in 0 until channelCount) {
                 dp.setLimiterAllChannelsTo(limiter)
@@ -152,11 +146,12 @@ class GlobalBassService : Service() {
         if (usingDynamicsProcessing && dynamicsProcessing != null) {
             val dp = dynamicsProcessing!!
             val subDb = t * MAX_SUB_BOOST_DB
-            val band = DynamicsProcessing.EqBand(true, 70f, subDb)
+            // Aplicamos ganancia de graves limpia sobre la frecuencia de 55Hz
+            val band = DynamicsProcessing.EqBand(true, 55f, subDb)
             dp.setPreEqBandAllChannelsTo(0, band)
         } else {
-            bassBoost?.setStrength((t * 1000).toInt().toShort())
-            loudnessEnhancer?.setTargetGain((-t * 300).toInt())
+            bassBoost?.setStrength((t * 800).toInt().toShort())
+            loudnessEnhancer?.setTargetGain((-t * 200).toInt())
         }
 
         updateNotification()
@@ -183,8 +178,8 @@ class GlobalBassService : Service() {
 
     private fun buildNotification(): Notification {
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Bass Boost activo")
-            .setContentText("Grave: $currentLevel%")
+            .setContentTitle("Bass Boost Pro activo")
+            .setContentText("Bajo profundo: $currentLevel%")
             .setSmallIcon(android.R.drawable.ic_media_play)
             .setOngoing(true)
             .build()
