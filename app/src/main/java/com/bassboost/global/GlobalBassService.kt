@@ -67,46 +67,44 @@ class GlobalBassService : Service() {
             val config = DynamicsProcessing.Config.Builder(
                 DynamicsProcessing.VARIANT_FAVOR_FREQUENCY_RESOLUTION,
                 channelCount,
-                true, 1,   // preEq activo (estante de graves)
-                true, 1,   // mbc activo (compresor multibanda)
+                true, 2,   // 2 bandas PreEq (Graves en Banda 0, Voz en Banda 1)
+                true, 1,   // mbc activo
                 false, 0,  
-                true       // limiter activo (brick-wall)
+                true       // limiter activo
             ).build()
 
             val dp = DynamicsProcessing(0, 0, config)
 
             for (ch in 0 until channelCount) {
-                // Estante de graves profundos centrado en 45Hz
-                val preEqBand = DynamicsProcessing.EqBand(true, 45f, 0f)
-                dp.setPreEqBandAllChannelsTo(0, preEqBand)
+                // Al arrancar en nivel 0, la ganancia comienza en 0dB para no alterar el volumen original
+                val subBassBand = DynamicsProcessing.EqBand(true, 45f, 0f)
+                dp.setPreEqBandAllChannelsTo(0, subBassBand)
 
-                // Constructor corregido de MbcBand con los 11 parámetros exactos de Android
+                val voiceClarityBand = DynamicsProcessing.EqBand(true, 2500f, 3.0f)
+                dp.setPreEqBandAllChannelsTo(1, voiceClarityBand)
+
                 val mbcBand = DynamicsProcessing.MbcBand(
-                    true,     // enabled
-                    120f,     // cutoffFrequency
-                    1f,       // attackTime (ms)
-                    80f,      // releaseTime (ms)
-                    4.0f,     // ratio
-                    -18.0f,   // threshold
-                    6.0f,     // kneeWidth
-                    0f,       // noiseGateThreshold
-                    0f,       // expanderRatio
-                    0f,       // preGain
-                    0f        // postGain
+                    true,     
+                    120f,     
+                    1f,       
+                    80f,      
+                    4.0f,     
+                    -16.0f,   
+                    6.0f,     
+                    0f, 0f, 0f, 0f
                 )
                 dp.setMbcBandAllChannelsTo(0, mbcBand)
             }
 
-            // Constructor corregido de Limiter con los 8 parámetros exactos de Android
             val limiter = DynamicsProcessing.Limiter(
-                true,   // enabled
-                true,   // linked
-                1,      // linkGroup
-                0.5f,   // attackTime (ms)
-                50f,    // releaseTime (ms)
-                20.0f,  // ratio
-                -6.0f,  // threshold (-6dB de seguridad)
-                0f      // postGain
+                true,   
+                true,   
+                1,      
+                0.5f,   
+                50f,    
+                20.0f,  
+                -4.0f,  
+                0f      
             )
             for (ch in 0 until channelCount) {
                 dp.setLimiterAllChannelsTo(limiter)
@@ -125,9 +123,9 @@ class GlobalBassService : Service() {
 
     private fun trySetupLegacyFallback() {
         try {
-            bassBoost = BassBoost(0, 0).apply { enabled = true }
+            bassBoost = BassBoost(0, 0).apply { enabled = true; setStrength(0) }
             equalizer = Equalizer(0, 0).apply { enabled = true }
-            loudnessEnhancer = LoudnessEnhancer(0).apply { enabled = true }
+            loudnessEnhancer = LoudnessEnhancer(0).apply { enabled = true; setTargetGain(0) }
         } catch (e: Exception) {
             Log.e("GlobalBassService", "Error en fallback: ${e.message}")
         }
@@ -139,19 +137,25 @@ class GlobalBassService : Service() {
 
         if (usingDynamicsProcessing && dynamicsProcessing != null) {
             val dp = dynamicsProcessing!!
-            val subDb = t * 12.0f 
-            val band = DynamicsProcessing.EqBand(true, 45f, subDb)
-            dp.setPreEqBandAllChannelsTo(0, band)
+            // El grave profundo escala progresivamente únicamente cuando mueves la barra (de 0dB hasta 14dB)
+            val subDb = t * 14.0f 
+            val subBassBand = DynamicsProcessing.EqBand(true, 45f, subDb)
+            dp.setPreEqBandAllChannelsTo(0, subBassBand)
+            
+            val voiceClarityBand = DynamicsProcessing.EqBand(true, 2500f, 3.0f)
+            dp.setPreEqBandAllChannelsTo(1, voiceClarityBand)
         } else {
-            bassBoost?.setStrength((t * 700).toInt().toShort())
+            bassBoost?.setStrength((t * 800).toInt().toShort())
         }
 
+        // Si la barra está en 0, el LoudnessEnhancer no aplica ninguna atenuación ni ganancia artificial.
+        // Solo actúa de forma milimétrica si subes los graves para prevenir distorsión.
         if (loudnessEnhancer == null) {
             try {
                 loudnessEnhancer = LoudnessEnhancer(0).apply { enabled = true }
             } catch (_: Exception) {}
         }
-        val attenuationMb = (-t * 500).toInt()
+        val attenuationMb = if (currentLevel > 0) (-t * 250).toInt() else 0
         loudnessEnhancer?.setTargetGain(attenuationMb)
 
         updateNotification()
