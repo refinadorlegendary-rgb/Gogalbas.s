@@ -39,8 +39,14 @@ class GlobalBassService : Service() {
         const val ACTION_SET_LEVEL = "com.bassboost.global.SET_LEVEL"
         const val EXTRA_LEVEL = "level" // 0..100
 
-        const val MAX_SUB_BOOST_DB = 10f // rango seguro para evitar distorsión
-        const val MAX_PUNCH_BOOST_DB = 4f
+        // Diseño portado del motor Web Audio "CarPlayer Pro": 4 zonas en vez de 3.
+        // 0-45Hz = sub-grave puro, 45-75Hz = "golpe" profundo, 75-130Hz = zona de
+        // "cajoneo" (boxiness) que se recorta un poco para que no suene sucio,
+        // 130Hz+ = todo lo demás, siempre plano.
+        const val MAX_SUB_BOOST_DB = 10f   // banda 0 (0-45Hz)
+        const val MAX_DEEP_BOOST_DB = 8f    // banda 1 (45-75Hz)
+        const val THERMAL_GUARD_DB = -3f    // banda 2 (75-130Hz), fija, anti-cajoneo
+        const val MAX_INPUT_GAIN_CUT_DB = 3f // compensación de volumen general al máximo
     }
 
     private var dynamicsProcessing: DynamicsProcessing? = null
@@ -91,80 +97,81 @@ class GlobalBassService : Service() {
     private fun trySetupDynamicsProcessing(): Boolean {
         return try {
             val channelCount = 2
-            // ANTES: 1 sola banda de EQ y de compresión con "cutoff" en 55/120Hz.
-            // Con una sola banda, esa banda cubre TODO el espectro (no solo el
-            // grave) porque no hay una segunda banda que la limite por arriba.
-            // Resultado: el boost y la compresión se aplicaban también a voces,
-            // medios y agudos -> sonido apagado/"ronco", no bajo limpio.
-            // AHORA: 3 bandas explícitas, para que el boost y la compresión
-            // queden aislados al grave y el resto del espectro pase intacto.
+            // Diseño portado del motor Web Audio de referencia ("CarPlayer Pro"):
+            // en vez de 3 zonas, ahora son 4 -> aísla mejor el grave y evita el
+            // "cajoneo" (boxiness) que hacía sonar todo más sucio.
+            //   Banda 0: 0-45Hz   -> sub-grave puro (boost variable)
+            //   Banda 1: 45-75Hz  -> "golpe" profundo (boost variable, menor)
+            //   Banda 2: 75-130Hz -> zona de cajoneo, SIEMPRE -3dB fija
+            //   Banda 3: 130Hz+   -> resto del espectro, SIEMPRE 0dB, intacto
             val config = DynamicsProcessing.Config.Builder(
                 DynamicsProcessing.VARIANT_FAVOR_FREQUENCY_RESOLUTION,
                 channelCount,
-                true, 3,   // preEq: banda0 sub-grave, banda1 punch, banda2 resto (plana)
-                true, 3,   // mbc: mismo esquema de 3 bandas
-                false, 0,  // sin postEq
-                true       // limiter final -> brick-wall de seguridad
+                true, 4,
+                true, 4,
+                false, 0,
+                true
             ).build()
 
             val dp = DynamicsProcessing(0, 0, config)
 
             for (ch in 0 until channelCount) {
-                // --- EQ: banda 0 = 0-60Hz (sub-grave, la que se refuerza) ---
-                dp.setPreEqBandAllChannelsTo(0, DynamicsProcessing.EqBand(true, 60f, 0f))
-                // --- EQ: banda 1 = 60-200Hz (punch, refuerzo menor) ---
-                dp.setPreEqBandAllChannelsTo(1, DynamicsProcessing.EqBand(true, 200f, 0f))
-                // --- EQ: banda 2 = 200Hz-Nyquist, SIEMPRE en 0dB -> voces/medios/
-                //     agudos quedan intactos, sin boost ni coloración ---
-                dp.setPreEqBandAllChannelsTo(2, DynamicsProcessing.EqBand(true, 20000f, 0f))
+                dp.setPreEqBandAllChannelsTo(0, DynamicsProcessing.EqBand(true, 45f, 0f))
+                dp.setPreEqBandAllChannelsTo(1, DynamicsProcessing.EqBand(true, 75f, 0f))
+                // Banda anti-cajoneo: fija, nunca se mueve con el slider.
+                dp.setPreEqBandAllChannelsTo(2, DynamicsProcessing.EqBand(true, 130f, THERMAL_GUARD_DB))
+                // Resto del espectro: siempre plano, voces/medios/agudos intactos.
+                dp.setPreEqBandAllChannelsTo(3, DynamicsProcessing.EqBand(true, 20000f, 0f))
 
-                // --- MBC banda 0: compresión suave solo del sub-grave, para
-                //     controlar el pico que genera el boost sin recortar la onda ---
+                // Compresor "anti-tick" solo sobre el sub-grave aislado — igual que
+                // en el script web, pero con attack de 10ms en vez de 1ms: Android
+                // no tiene el look-ahead interno que sí tiene WebAudio's
+                // DynamicsCompressorNode, así que un attack tan rápido aquí sí
+                // recorta el propio ciclo de la onda (esto fue lo que ya vimos
+                // que causaba distorsión antes). 10ms sigue siendo rápido de sobra
+                // para atrapar picos, sin deformar la onda de 45Hz (~22ms/ciclo).
                 dp.setMbcBandAllChannelsTo(
                     0,
                     DynamicsProcessing.MbcBand(
-                        true, 60f,
-                        12f, 120f,   // attack/release (ms) — más lentos que un ciclo de 60Hz
-                        2f, -10f, 6f,
+                        true, 45f,
+                        10f, 150f,   // attack/release (ms)
+                        4f, -18f, 8f,
                         0f, 0f, 0f, 0f
                     )
                 )
-                // --- MBC banda 1: un poco de control en la zona de punch ---
                 dp.setMbcBandAllChannelsTo(
                     1,
                     DynamicsProcessing.MbcBand(
-                        true, 200f,
-                        10f, 100f,
-                        1.5f, -8f, 4f,
+                        true, 75f,
+                        10f, 150f,
+                        3f, -14f, 6f,
                         0f, 0f, 0f, 0f
                     )
                 )
-                // --- MBC banda 2: DESACTIVADA -> el resto del espectro pasa sin
-                //     compresión, que es justo lo que faltaba antes ---
+                // Banda anti-cajoneo y banda plana: sin compresión, pasan intactas.
                 dp.setMbcBandAllChannelsTo(
                     2,
-                    DynamicsProcessing.MbcBand(
-                        false, 20000f,
-                        10f, 100f, 1f, 0f, 0f, 0f, 0f, 0f, 0f
-                    )
+                    DynamicsProcessing.MbcBand(false, 130f, 10f, 100f, 1f, 0f, 0f, 0f, 0f, 0f, 0f)
+                )
+                dp.setMbcBandAllChannelsTo(
+                    3,
+                    DynamicsProcessing.MbcBand(false, 20000f, 10f, 100f, 1f, 0f, 0f, 0f, 0f, 0f, 0f)
                 )
             }
 
-            // Limitador final sobre la mezcla completa, como red de seguridad
-            // (attack lento para no recortar el propio ciclo del grave).
+            // Limitador final sobre la mezcla completa, como red de seguridad.
             val limiter = DynamicsProcessing.Limiter(
-                true,   // enabled
-                true,   // linked entre canales
-                1,      // linkGroup
-                5f,     // attackTime (ms)
-                90f,    // releaseTime (ms)
-                14f,    // ratio
-                -4f,    // threshold dB
-                0f      // postGain
+                true, true, 1,
+                5f, 90f, 14f, -4f, 0f
             )
             for (ch in 0 until channelCount) {
                 dp.setLimiterAllChannelsTo(limiter)
             }
+
+            // Compensación de volumen general dinámica (equivalente al
+            // "masterInput.gain = 0.35 - v*0.0055" del script web): deja margen
+            // (headroom) a medida que se sube el grave, en vez de un volumen fijo.
+            dp.setInputGainAllChannelsTo(0f) // se ajusta en applyBassLevel()
 
             dp.enabled = true
             dynamicsProcessing = dp
@@ -208,12 +215,18 @@ class GlobalBassService : Service() {
         if (usingDynamicsProcessing && dynamicsProcessing != null) {
             val dp = dynamicsProcessing!!
             val subDb = t * MAX_SUB_BOOST_DB
-            val punchDb = t * MAX_PUNCH_BOOST_DB
-            // Solo movemos banda 0 (sub-grave) y banda 1 (punch). La banda 2
-            // (200Hz-Nyquist) nunca se toca: se quedó fija en 0dB desde la
-            // inicialización, así que voces/medios/agudos siempre quedan limpios.
-            dp.setPreEqBandAllChannelsTo(0, DynamicsProcessing.EqBand(true, 60f, subDb))
-            dp.setPreEqBandAllChannelsTo(1, DynamicsProcessing.EqBand(true, 200f, punchDb))
+            val deepDb = t * MAX_DEEP_BOOST_DB
+            // Banda 0 (sub-grave) y banda 1 (golpe profundo) se mueven con el
+            // slider. Bandas 2 (anti-cajoneo, -3dB fija) y 3 (resto, 0dB fija)
+            // nunca se tocan aquí, igual que en la inicialización.
+            dp.setPreEqBandAllChannelsTo(0, DynamicsProcessing.EqBand(true, 45f, subDb))
+            dp.setPreEqBandAllChannelsTo(1, DynamicsProcessing.EqBand(true, 75f, deepDb))
+
+            // Compensación de volumen general (equivalente al "masterInput.gain"
+            // del script web): a más grave, un poco menos de ganancia general,
+            // para dejar margen y que el limitador no tenga que trabajar tanto.
+            val inputGainDb = -(t * MAX_INPUT_GAIN_CUT_DB)
+            dp.setInputGainAllChannelsTo(inputGainDb)
         } else {
             // Fallback: BassBoost.setStrength admite 0..1000
             bassBoost?.setStrength((t * 1000).toInt().toShort())
