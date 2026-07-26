@@ -64,38 +64,40 @@ class GlobalBassService : Service() {
     private fun trySetupDynamicsProcessing(): Boolean {
         return try {
             val channelCount = 2
-            // Configuración avanzada idéntica al diseño de filtros en paralelo de tu script web
             val config = DynamicsProcessing.Config.Builder(
                 DynamicsProcessing.VARIANT_FAVOR_FREQUENCY_RESOLUTION,
                 channelCount,
-                true, 1,   // preEq activo (simula el estante de graves de 45Hz)
-                true, 1,   // mbc activo (simula el compresor anti-ticks)
+                true, 1,   // preEq activo (estante de graves)
+                true, 1,   // mbc activo (compresor multibanda)
                 false, 0,  
-                true       // limiter activo (brick-wall maestro)
+                true       // limiter activo (brick-wall)
             ).build()
 
             val dp = DynamicsProcessing(0, 0, config)
 
             for (ch in 0 until channelCount) {
-                // Estante de graves profundos (frecuencia centrada en 45Hz, igual que tu web engine)
+                // Estante de graves profundos centrado en 45Hz
                 val preEqBand = DynamicsProcessing.EqBand(true, 45f, 0f)
                 dp.setPreEqBandAllChannelsTo(0, preEqBand)
 
-                // Compresor multibanda ajustado con ataque ultrarrápido para evitar chasquidos
+                // Constructor corregido de MbcBand con los 11 parámetros exactos de Android
                 val mbcBand = DynamicsProcessing.MbcBand(
                     true,     // enabled
                     120f,     // cutoffFrequency
-                    1f,       // attackTime (ms) - ultra rápido para intercepción de picos
+                    1f,       // attackTime (ms)
                     80f,      // releaseTime (ms)
                     4.0f,     // ratio
-                    -18.0f,   // threshold (dB)
+                    -18.0f,   // threshold
                     6.0f,     // kneeWidth
-                    0f, 0f, 0f, 0f
+                    0f,       // noiseGateThreshold
+                    0f,       // expanderRatio
+                    0f,       // preGain
+                    0f        // postGain
                 )
                 dp.setMbcBandAllChannelsTo(0, mbcBand)
             }
 
-            // Limitador master blindado anti-saturación
+            // Constructor corregido de Limiter con los 8 parámetros exactos de Android
             val limiter = DynamicsProcessing.Limiter(
                 true,   // enabled
                 true,   // linked
@@ -103,7 +105,7 @@ class GlobalBassService : Service() {
                 0.5f,   // attackTime (ms)
                 50f,    // releaseTime (ms)
                 20.0f,  // ratio
-                -6.0f,  // threshold estricto (-6dB) para garantizar nitidez absoluta
+                -6.0f,  // threshold (-6dB de seguridad)
                 0f      // postGain
             )
             for (ch in 0 until channelCount) {
@@ -116,7 +118,7 @@ class GlobalBassService : Service() {
         } catch (e: Exception) {
             Log.w("GlobalBassService", "DynamicsProcessing no disponible: ${e.message}")
             dynamicsProcessing?.release()
-            dynamicsProcessing = false
+            dynamicsProcessing = null
             false
         }
     }
@@ -137,7 +139,6 @@ class GlobalBassService : Service() {
 
         if (usingDynamicsProcessing && dynamicsProcessing != null) {
             val dp = dynamicsProcessing!!
-            // Escalado de ganancia controlado (máximo 12dB reales) para mantener pegada sin distorsión
             val subDb = t * 12.0f 
             val band = DynamicsProcessing.EqBand(true, 45f, subDb)
             dp.setPreEqBandAllChannelsTo(0, band)
@@ -145,14 +146,12 @@ class GlobalBassService : Service() {
             bassBoost?.setStrength((t * 700).toInt().toShort())
         }
 
-        // Sistema dinámico de Headroom: atenúa inteligentemente el volumen general 
-        // a medida que subes el bajo, evitando el "clipping" digital que causaba la distorsión.
         if (loudnessEnhancer == null) {
             try {
                 loudnessEnhancer = LoudnessEnhancer(0).apply { enabled = true }
             } catch (_: Exception) {}
         }
-        val attenuationMb = (-t * 500).toInt() // Hasta -5dB de compensación en el nivel máximo
+        val attenuationMb = (-t * 500).toInt()
         loudnessEnhancer?.setTargetGain(attenuationMb)
 
         updateNotification()
