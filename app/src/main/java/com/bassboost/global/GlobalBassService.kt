@@ -85,28 +85,33 @@ class GlobalBassService : Service() {
                 val voiceClarityBand = DynamicsProcessing.EqBand(true, 2500f, 3.5f)
                 dp.setPreEqBandAllChannelsTo(1, voiceClarityBand)
 
+                // CORREGIDO: Frecuencia de corte baja (85Hz) para no tragar la voz, con postGain para recuperar volumen
                 val mbcBand = DynamicsProcessing.MbcBand(
                     true,     // enabled
-                    120f,     // cutoffFrequency
-                    1f,       // attackTime (ms)
-                    80f,      // releaseTime (ms)
-                    4.0f,     // ratio
-                    -16.0f,   // threshold
-                    6.0f,     // kneeWidth
-                    0f, 0f, 0f, 0f
+                    85f,      // cutoffFrequency (Antes 120f, ahora respeta la voz)
+                    2f,       // attackTime (ms)
+                    100f,     // releaseTime (ms)
+                    3.0f,     // ratio
+                    -12.0f,   // threshold
+                    4.0f,     // kneeWidth
+                    0f,       // noiseGateThreshold
+                    1f,       // expanderRatio
+                    2.0f,     // preGain
+                    4.0f      // postGain (¡Devuelve el volumen al bajo profundo!)
                 )
                 dp.setMbcBandAllChannelsTo(0, mbcBand)
             }
 
+            // CORREGIDO: Limiter de seguridad optimizado para evitar distorsión y chasquidos
             val limiter = DynamicsProcessing.Limiter(
                 true,   // enabled
                 true,   // linked
                 1,      // linkGroup
-                0.5f,   // attackTime (ms)
-                50f,    // releaseTime (ms)
-                20.0f,  // ratio
-                -4.0f,  // threshold de seguridad
-                0f      // postGain
+                1.0f,   // attackTime (ms)
+                60f,    // releaseTime (ms)
+                10.0f,  // ratio (más musical que 20:1)
+                -2.0f,  // threshold de seguridad (más cercano a 0 para no apagar el sonido)
+                0.5f    // postGain
             )
             for (ch in 0 until channelCount) {
                 dp.setLimiterAllChannelsTo(limiter)
