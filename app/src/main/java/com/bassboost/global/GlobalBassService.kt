@@ -96,8 +96,8 @@ class GlobalBassService : Service() {
                     4.0f,     // kneeWidth
                     0f,       // noiseGateThreshold
                     1f,       // expanderRatio
-                    2.0f,     // preGain
-                    6.0f      // postGain (¡Devuelve el volumen al bajo profundo!)
+                    8.0f,     // preGain
+                    9.0f      // postGain (¡Devuelve el volumen al bajo profundo!)
                 )
                 dp.setMbcBandAllChannelsTo(0, mbcBand)
             }
