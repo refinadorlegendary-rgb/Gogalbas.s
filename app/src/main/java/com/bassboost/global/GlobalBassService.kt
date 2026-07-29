@@ -88,7 +88,7 @@ class GlobalBassService : Service() {
                 // CORREGIDO: Frecuencia de corte baja (85Hz) para no tragar la voz, con postGain para recuperar volumen
                 val mbcBand = DynamicsProcessing.MbcBand(
                     true,     // enabled
-                    85f,      // cutoffFrequency (Antes 120f, ahora respeta la voz)
+                    90f,      // cutoffFrequency (Antes 120f, ahora respeta la voz)
                     2f,       // attackTime (ms)
                     100f,     // releaseTime (ms)
                     3.0f,     // ratio
@@ -97,7 +97,7 @@ class GlobalBassService : Service() {
                     0f,       // noiseGateThreshold
                     1f,       // expanderRatio
                     2.0f,     // preGain
-                    4.0f      // postGain (¡Devuelve el volumen al bajo profundo!)
+                    6.0f      // postGain (¡Devuelve el volumen al bajo profundo!)
                 )
                 dp.setMbcBandAllChannelsTo(0, mbcBand)
             }
