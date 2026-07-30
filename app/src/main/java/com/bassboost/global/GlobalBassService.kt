@@ -179,7 +179,7 @@ class GlobalBassService : Service() {
             dp.setPreEqBandAllChannelsTo(3, DynamicsProcessing.EqBand(true, 14000f, tTwister * 12.0f))
 
             val mbcBand = DynamicsProcessing.MbcBand(
-                true, 130f, 0.001f, 0.3f, 16.0f, -18.0f, 16.0f, 0f, 1.0f, 14.0f, 14.0f
+                true, 130f, 0.001f, 0.3f, 16.0f, -18.0f, 16.0f, 0f, 1.0f, 1.0f, 4.0f
             )
             dp.setMbcBandAllChannelsTo(0, mbcBand)
         }
