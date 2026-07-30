@@ -50,7 +50,7 @@ class GlobalBassService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_SET_BASS_LEVEL -> {
-                bassLevel = intent.getIntExtra(EXTRA_LEVEL, 0).coerceIn(0, 29) // Adaptado al rango exacto de la extensión
+                bassLevel = intent.getIntExtra(EXTRA_LEVEL, 0).coerceIn(0, 29)
                 applyAllEffects()
             }
             ACTION_SET_HIFI_LEVEL -> {
@@ -116,13 +116,11 @@ class GlobalBassService : Service() {
 
             val dp = DynamicsProcessing(0, 0, config)
             for (ch in 0 until channelCount) {
-                // Filtro sub-sónico y bajo profundo limpio (equivalente a 28Hz y 40Hz de la extensión)
                 dp.setPreEqBandAllChannelsTo(0, DynamicsProcessing.EqBand(true, 28f, 0f))
-                dp.setPreEqBandAllChannelsTo(1, DynamicsProcessing.EqBand(true, 130f, 0f)) // Corte estricto para proteger la voz
+                dp.setPreEqBandAllChannelsTo(1, DynamicsProcessing.EqBand(true, 130f, 0f))
                 dp.setPreEqBandAllChannelsTo(2, DynamicsProcessing.EqBand(true, 10000f, 0f))
                 dp.setPreEqBandAllChannelsTo(3, DynamicsProcessing.EqBand(true, 14000f, 0f))
 
-                // Compresor blindado anti-ticks adaptado para evitar distorsión y bajo seco
                 val mbcBand = DynamicsProcessing.MbcBand(
                     true, 130f, 0.001f, 0.3f, 16.0f, -18.0f, 16.0f, 0f, 1.0f, 14.0f, 14.0f
                 )
@@ -145,15 +143,14 @@ class GlobalBassService : Service() {
     }
 
     private fun applyAllEffects() {
-        val tBass = bassLevel / 29.0f // Normalizado al rango de la extensión (0 - 29)
-        val tTweeter = tweeterLevel / 20.0f
-        val tDolby = dolbyLevel / 15.0f
+        val tBass = bassLevel / 29.0f
+        val tHifi = hifiLevel / 20.0f
+        val tTwister = twisterLevel / 15.0f
 
         try {
             bassBoost?.setStrength((tBass * 1000).toInt().toShort())
         } catch (_: Exception) {}
 
-        // Ecualizador adaptado al canal paralelo de bajo profundo limpio
         try {
             equalizer?.let { eq ->
                 val numBands = eq.numberOfBands
@@ -161,10 +158,8 @@ class GlobalBassService : Service() {
                     val maxMillibels = eq.bandLevelRange[1]
                     val targetLevel = (tBass * maxMillibels * 1.2f).toInt().coerceAtMost(maxMillibels.toInt()).toShort()
                     
-                    // Banda 0 concentrada en el subgrave profundo
                     eq.setBandLevel(0.toShort(), targetLevel)
                     
-                    // Bandas siguientes en 0 para aislar completamente la voz y evitar que se hunda
                     if (numBands > 1) {
                         eq.setBandLevel(1.toShort(), 0.toShort())
                     }
@@ -175,14 +170,13 @@ class GlobalBassService : Service() {
             }
         } catch (_: Exception) {}
 
-        // Aplicación del motor de graves limpios en DynamicsProcessing (Android 9+)
         if (usingDynamicsProcessing && dynamicsProcessing != null) {
             val dp = dynamicsProcessing!!
             val subDb = tBass * 42.0f
             dp.setPreEqBandAllChannelsTo(0, DynamicsProcessing.EqBand(true, 28f, subDb))
             dp.setPreEqBandAllChannelsTo(1, DynamicsProcessing.EqBand(true, 130f, 0f))
-            dp.setPreEqBandAllChannelsTo(2, DynamicsProcessing.EqBand(true, 10000f, tTweeter * 12.0f))
-            dp.setPreEqBandAllChannelsTo(3, DynamicsProcessing.EqBand(true, 14000f, tDolby * 12.0f))
+            dp.setPreEqBandAllChannelsTo(2, DynamicsProcessing.EqBand(true, 10000f, tHifi * 12.0f))
+            dp.setPreEqBandAllChannelsTo(3, DynamicsProcessing.EqBand(true, 14000f, tTwister * 12.0f))
 
             val mbcBand = DynamicsProcessing.MbcBand(
                 true, 130f, 0.001f, 0.3f, 16.0f, -18.0f, 16.0f, 0f, 1.0f, 14.0f, 14.0f
@@ -196,10 +190,9 @@ class GlobalBassService : Service() {
             } catch (_: Exception) {}
         }
 
-        // Control maestro de ganancia idéntico al de la extensión para evitar saturación absoluta al tope
         val dynamicVol = (0.35f - (tBass * 0.0055f) * 29f).coerceAtLeast(0.08f)
         val baseGain = (dynamicVol * 100).toInt()
-        val spatialGainBoost = if (mode6dEnabled) 150 else 0 
+        val spatialGainBoost = if (is6dEnabled) 150 else 0 
         
         try {
             loudnessEnhancer?.setTargetGain(baseGain + spatialGainBoost)
@@ -219,7 +212,7 @@ class GlobalBassService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "CarPlayer Pro — Deep Bass HD",
+                "Deep Bass Pro Engine",
                 NotificationManager.IMPORTANCE_LOW
             )
             val manager = getSystemService(NotificationManager::class.java)
@@ -228,10 +221,10 @@ class GlobalBassService : Service() {
     }
 
     private fun buildNotification(): Notification {
-        val status6d = if (mode6dEnabled) "ON" else "OFF"
+        val status6d = if (is6dEnabled) "ON" else "OFF"
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("CarPlayer Pro — Deep Bass HD")
-            .setContentText("Bajo: $bassLevel | Tweeter: $tweeterLevel | Dolby: $dolbyLevel | 6D: $status6d")
+            .setContentText("Bajo: $bassLevel | HiFi: $hifiLevel | Twister: $twisterLevel | 6D: $status6d")
             .setSmallIcon(android.R.drawable.ic_media_play)
             .setOngoing(true)
             .build()
