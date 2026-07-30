@@ -24,8 +24,8 @@ class GlobalBassService : Service() {
         const val ACTION_SET_TWISTER_LEVEL = "com.bassboost.global.SET_TWISTER_LEVEL"
         const val ACTION_SET_6D_TOGGLE = "com.bassboost.global.SET_6D_TOGGLE"
 
-        const val EXTRA_LEVEL = "level" // 0..100
-        const val EXTRA_ENABLED = "enabled" // true..false
+        const val EXTRA_LEVEL = "level"
+        const val EXTRA_ENABLED = "enabled"
     }
 
     private var dynamicsProcessing: DynamicsProcessing? = null
@@ -77,13 +77,30 @@ class GlobalBassService : Service() {
     }
 
     private fun setupGlobalEffectChain() {
+        // Inicializamos tanto BassBoost global como Equalizador para asegurar impacto físico en cualquier dispositivo
+        try {
+            bassBoost = BassBoost(0, 0).apply {
+                enabled = true
+                setStrength(0)
+            }
+        } catch (e: Exception) {
+            Log.w("GlobalBassService", "BassBoost global no soportado: ${e.message}")
+        }
+
+        try {
+            equalizer = Equalizer(0, 0).apply {
+                enabled = true
+            }
+        } catch (e: Exception) {
+            Log.w("GlobalBassService", "Equalizer global no soportado: ${e.message}")
+        }
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             if (trySetupDynamicsProcessing()) {
                 usingDynamicsProcessing = true
                 return
             }
         }
-        trySetupLegacyFallback()
     }
 
     private fun trySetupDynamicsProcessing(): Boolean {
@@ -92,47 +109,26 @@ class GlobalBassService : Service() {
             val config = DynamicsProcessing.Config.Builder(
                 DynamicsProcessing.VARIANT_FAVOR_FREQUENCY_RESOLUTION,
                 channelCount,
-                true, 4,   // 4 bandas PreEq
-                true, 1,   // mbc activo
-                false, 0,  
-                true       // limiter activo
+                true, 4,
+                true, 1,
+                false, 0,
+                true
             ).build()
 
             val dp = DynamicsProcessing(0, 0, config)
-
             for (ch in 0 until channelCount) {
-                dp.setPreEqBandAllChannelsTo(0, DynamicsProcessing.EqBand(true, 40f, 0f))   
-                dp.setPreEqBandAllChannelsTo(1, DynamicsProcessing.EqBand(true, 2800f, 6.0f)) 
-                dp.setPreEqBandAllChannelsTo(2, DynamicsProcessing.EqBand(true, 10000f, 0f)) 
-                dp.setPreEqBandAllChannelsTo(3, DynamicsProcessing.EqBand(true, 14000f, 0f)) 
+                dp.setPreEqBandAllChannelsTo(0, DynamicsProcessing.EqBand(true, 40f, 0f))
+                dp.setPreEqBandAllChannelsTo(1, DynamicsProcessing.EqBand(true, 2800f, 6.0f))
+                dp.setPreEqBandAllChannelsTo(2, DynamicsProcessing.EqBand(true, 10000f, 0f))
+                dp.setPreEqBandAllChannelsTo(3, DynamicsProcessing.EqBand(true, 14000f, 0f))
 
-                // Compresor optimizado con mayor preGain e inyección de cuerpo
                 val mbcBand = DynamicsProcessing.MbcBand(
-                    true,     
-                    130f,     
-                    0.001f,   
-                    0.3f,     
-                    16.0f,    
-                    -18.0f,   
-                    16.0f,    
-                    0f,       
-                    1f,       
-                    8.0f,     // Aumentado para inyectar más potencia limpia al subgrave
-                    9.0f      // Mayor ganancia posterior para mayor presión sonora
+                    true, 130f, 0.001f, 0.3f, 16.0f, -18.0f, 16.0f, 0f, 1f, 12.0f, 12.0f
                 )
                 dp.setMbcBandAllChannelsTo(0, mbcBand)
             }
 
-            val limiter = DynamicsProcessing.Limiter(
-                true,   
-                true,   
-                1,      
-                1.0f,   
-                40f,    
-                20.0f,  
-                -14.0f, 
-                0.0f    
-            )
+            val limiter = DynamicsProcessing.Limiter(true, true, 1, 1.0f, 40f, 20.0f, -12.0f, 0.0f)
             for (ch in 0 until channelCount) {
                 dp.setLimiterAllChannelsTo(limiter)
             }
@@ -141,39 +137,48 @@ class GlobalBassService : Service() {
             dynamicsProcessing = dp
             true
         } catch (e: Exception) {
-            Log.w("GlobalBassService", "DynamicsProcessing no disponible: ${e.message}")
             dynamicsProcessing?.release()
             dynamicsProcessing = null
             false
         }
     }
 
-    private fun trySetupLegacyFallback() {
-        try {
-            bassBoost = BassBoost(0, 0).apply { enabled = true; setStrength(0) }
-            equalizer = Equalizer(0, 0).apply { enabled = true }
-            loudnessEnhancer = LoudnessEnhancer(0).apply { enabled = true; setTargetGain(0) }
-        } catch (e: Exception) {
-            Log.e("GlobalBassService", "Error en fallback: ${e.message}")
-        }
-    }
-
     private fun applyAllEffects() {
-        // Multiplicador incrementado (hasta 32dB al 100%) para un bajo profundo contundente
-        val tBass = (bassLevel / 100f) * 32.0f   
-        val tHifi = (hifiLevel / 100f) * 12.0f
-        val tTwister = (twisterLevel / 100f) * 12.0f
+        val tBass = bassLevel / 100f
+        val tHifi = hifiLevel / 100f
+        val tTwister = twisterLevel / 100f
 
+        // 1. Forzar BassBoost al máximo nivel físico del hardware (hasta 1000 = 100%)
+        try {
+            bassBoost?.setStrength((tBass * 1000).toInt().toShort())
+        } catch (_: Exception) {}
+
+        // 2. Reforzar bandas graves mediante el Equalizador del sistema si está disponible
+        try {
+            equalizer?.let { eq ->
+                val numBands = eq.numberOfBands
+                if (numBands > 0) {
+                    // Seleccionar la banda más baja disponible para subgraves
+                    val lowestBand = 0.toShort()
+                    val maxMillibels = eq.bandLevelRange[1] // Usualmente +15dB (1500 millibels)
+                    val targetLevel = (tBass * maxMillibels).toInt().toShort()
+                    eq.setBandLevel(lowestBand, targetLevel)
+                    
+                    if (numBands > 1) {
+                        eq.setBandLevel(1.toShort(), (targetLevel * 0.4f).toInt().toShort())
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+
+        // 3. Aplicar en DynamicsProcessing si es compatible en paralelo
         if (usingDynamicsProcessing && dynamicsProcessing != null) {
             val dp = dynamicsProcessing!!
-
-            dp.setPreEqBandAllChannelsTo(0, DynamicsProcessing.EqBand(true, 40f, tBass))
+            val subDb = tBass * 36.0f // Potencia extrema de subgraves
+            dp.setPreEqBandAllChannelsTo(0, DynamicsProcessing.EqBand(true, 40f, subDb))
             dp.setPreEqBandAllChannelsTo(1, DynamicsProcessing.EqBand(true, 2800f, 6.0f))
-            dp.setPreEqBandAllChannelsTo(2, DynamicsProcessing.EqBand(true, 10000f, tHifi))
-            dp.setPreEqBandAllChannelsTo(3, DynamicsProcessing.EqBand(true, 14000f, tTwister))
-
-        } else {
-            bassBoost?.setStrength(((bassLevel / 100f) * 1000).toInt().toShort())
+            dp.setPreEqBandAllChannelsTo(2, DynamicsProcessing.EqBand(true, 10000f, tHifi * 14.0f))
+            dp.setPreEqBandAllChannelsTo(3, DynamicsProcessing.EqBand(true, 14000f, tTwister * 14.0f))
         }
 
         if (loudnessEnhancer == null) {
@@ -182,9 +187,12 @@ class GlobalBassService : Service() {
             } catch (_: Exception) {}
         }
 
-        val baseGain = if (bassLevel > 0) (35 - (bassLevel * 0.55f)).toInt() else 35
-        val spatialGainBoost = if (is6dEnabled) 150 else 0 
-        loudnessEnhancer?.setTargetGain(baseGain + spatialGainBoost)
+        // Ganancia compensada para evitar pérdida de volumen general al subir los graves
+        val baseGain = if (bassLevel > 0) (40 - (bassLevel * 0.4f)).toInt() else 40
+        val spatialGainBoost = if (is6dEnabled) 180 else 0 
+        try {
+            loudnessEnhancer?.setTargetGain(baseGain + spatialGainBoost)
+        } catch (_: Exception) {}
 
         updateNotification()
     }
