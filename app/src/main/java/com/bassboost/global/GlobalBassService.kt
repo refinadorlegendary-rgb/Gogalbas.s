@@ -89,12 +89,11 @@ class GlobalBassService : Service() {
     private fun trySetupDynamicsProcessing(): Boolean {
         return try {
             val channelCount = 2
-            // Configuramos 4 bandas PreEq para replicar la estructura paralela exacta del motor HD Bass
             val config = DynamicsProcessing.Config.Builder(
                 DynamicsProcessing.VARIANT_FAVOR_FREQUENCY_RESOLUTION,
                 channelCount,
-                true, 4,   // 4 bandas PreEq: [0] SubBass 40Hz, [1] Mid/Voice 2800Hz, [2] HiFi 10000Hz, [3] Twister 14000Hz
-                true, 1,   // mbc activo (Canal paralelo de compresión anti-ticks)
+                true, 4,   // 4 bandas PreEq
+                true, 1,   // mbc activo
                 false, 0,  
                 true       // limiter activo
             ).build()
@@ -102,39 +101,37 @@ class GlobalBassService : Service() {
             val dp = DynamicsProcessing(0, 0, config)
 
             for (ch in 0 until channelCount) {
-                // Frecuencias milimétricas idénticas al motor de referencia
-                dp.setPreEqBandAllChannelsTo(0, DynamicsProcessing.EqBand(true, 40f, 0f))   // Sub-engine / Deep bass
-                dp.setPreEqBandAllChannelsTo(1, DynamicsProcessing.EqBand(true, 2800f, 6.0f)) // Claridad de voz limpia
-                dp.setPreEqBandAllChannelsTo(2, DynamicsProcessing.EqBand(true, 10000f, 0f)) // Tweeter / Hi-Fi
-                dp.setPreEqBandAllChannelsTo(3, DynamicsProcessing.EqBand(true, 14000f, 0f)) // Twister
+                dp.setPreEqBandAllChannelsTo(0, DynamicsProcessing.EqBand(true, 40f, 0f))   
+                dp.setPreEqBandAllChannelsTo(1, DynamicsProcessing.EqBand(true, 2800f, 6.0f)) 
+                dp.setPreEqBandAllChannelsTo(2, DynamicsProcessing.EqBand(true, 10000f, 0f)) 
+                dp.setPreEqBandAllChannelsTo(3, DynamicsProcessing.EqBand(true, 14000f, 0f)) 
 
-                // Compresor blindado anti-ticks (Ataque ultrarrápido y liberación controlada)
+                // Compresor optimizado con mayor preGain e inyección de cuerpo
                 val mbcBand = DynamicsProcessing.MbcBand(
-                    true,     // enabled
-                    130f,     // cutoffFrequency exacto para evitar filtraciones de voz o agudos
-                    0.001f,   // attackTime ultra rápido para interceptar micro-transitorios
-                    0.3f,     // releaseTime pausado para cero eco
-                    16.0f,    // ratio alto para contener nivel extremo
-                    -18.0f,   // threshold
-                    16.0f,    // kneeWidth
-                    0f,       // noiseGateThreshold
-                    1f,       // expanderRatio
-                    4.0f,     // preGain
-                    6.0f      // postGain
+                    true,     
+                    130f,     
+                    0.001f,   
+                    0.3f,     
+                    16.0f,    
+                    -18.0f,   
+                    16.0f,    
+                    0f,       
+                    1f,       
+                    8.0f,     // Aumentado para inyectar más potencia limpia al subgrave
+                    9.0f      // Mayor ganancia posterior para mayor presión sonora
                 )
                 dp.setMbcBandAllChannelsTo(0, mbcBand)
             }
 
-            // Limitador master reforzado definitivo (-14 dB threshold / Ratio 20)
             val limiter = DynamicsProcessing.Limiter(
-                true,   // enabled
-                true,   // linked
-                1,      // linkGroup
-                1.0f,   // attackTime
-                40f,    // releaseTime
-                20.0f,  // ratio idéntico
-                -14.0f, // threshold estricto anti-saturación
-                0.0f    // postGain
+                true,   
+                true,   
+                1,      
+                1.0f,   
+                40f,    
+                20.0f,  
+                -14.0f, 
+                0.0f    
             )
             for (ch in 0 until channelCount) {
                 dp.setLimiterAllChannelsTo(limiter)
@@ -162,24 +159,17 @@ class GlobalBassService : Service() {
     }
 
     private fun applyAllEffects() {
-        // Mapeo lineal exacto de la escala del ejemplo (0 a 100 escalado a la proporción del motor)
-        val tBass = (bassLevel / 100f) * 24.0f   // Rango profundo optimizado
+        // Multiplicador incrementado (hasta 32dB al 100%) para un bajo profundo contundente
+        val tBass = (bassLevel / 100f) * 32.0f   
         val tHifi = (hifiLevel / 100f) * 12.0f
         val tTwister = (twisterLevel / 100f) * 12.0f
 
         if (usingDynamicsProcessing && dynamicsProcessing != null) {
             val dp = dynamicsProcessing!!
 
-            // Inyección milimétrica en la banda de Subgrave / Deep Engine (40Hz)
             dp.setPreEqBandAllChannelsTo(0, DynamicsProcessing.EqBand(true, 40f, tBass))
-            
-            // Banda de voz estable y nítida intacta
             dp.setPreEqBandAllChannelsTo(1, DynamicsProcessing.EqBand(true, 2800f, 6.0f))
-
-            // Hi-Fi / Tweeter
             dp.setPreEqBandAllChannelsTo(2, DynamicsProcessing.EqBand(true, 10000f, tHifi))
-
-            // Twister / Agudos envolventes
             dp.setPreEqBandAllChannelsTo(3, DynamicsProcessing.EqBand(true, 14000f, tTwister))
 
         } else {
@@ -192,7 +182,6 @@ class GlobalBassService : Service() {
             } catch (_: Exception) {}
         }
 
-        // Control dinámico de ganancia maestro idéntico al motor web para evitar saturación al tope
         val baseGain = if (bassLevel > 0) (35 - (bassLevel * 0.55f)).toInt() else 35
         val spatialGainBoost = if (is6dEnabled) 150 else 0 
         loudnessEnhancer?.setTargetGain(baseGain + spatialGainBoost)
