@@ -3,8 +3,8 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:gravity="center"
-    android:padding="32dp"
+    android:gravity="center_horizontal"
+    android:padding="24dp"
     android:background="#000000">
 
     <TextView
@@ -15,7 +15,7 @@
         android:textSize="20sp"
         android:textStyle="bold"
         android:fontFamily="monospace"
-        android:layout_marginBottom="24dp" />
+        android:layout_marginBottom="12dp" />
 
     <TextView
         android:id="@+id/statusText"
@@ -24,7 +24,16 @@
         android:text="Servicio detenido"
         android:textColor="#4CAF50"
         android:textSize="13sp"
-        android:layout_marginBottom="24dp" />
+        android:layout_marginBottom="16dp" />
+
+    <!-- 1. BAJO PROFUNDO -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Bajo Profundo"
+        android:textColor="#00FF00"
+        android:textSize="14sp"
+        android:fontFamily="monospace" />
 
     <TextView
         android:id="@+id/levelText"
@@ -32,9 +41,8 @@
         android:layout_height="wrap_content"
         android:text="0%"
         android:textColor="#00FF00"
-        android:textSize="28sp"
-        android:fontFamily="monospace"
-        android:layout_marginBottom="8dp" />
+        android:textSize="20sp"
+        android:fontFamily="monospace" />
 
     <SeekBar
         android:id="@+id/bassSeekBar"
@@ -42,20 +50,96 @@
         android:layout_height="wrap_content"
         android:max="100"
         android:progress="0"
-        android:layout_marginBottom="24dp" />
+        android:layout_marginBottom="16dp" />
+
+    <!-- 2. HI-FI -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Hi-Fi (Agudos Cristalinos)"
+        android:textColor="#00FF00"
+        android:textSize="14sp"
+        android:fontFamily="monospace" />
+
+    <TextView
+        android:id="@+id/hifiLevelText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="0%"
+        android:textColor="#00FF00"
+        android:textSize="20sp"
+        android:fontFamily="monospace" />
+
+    <SeekBar
+        android:id="@+id/hifiSeekBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:max="100"
+        android:progress="0"
+        android:layout_marginBottom="16dp" />
+
+    <!-- 3. TWISTER -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Twister (Presencia Envolvente)"
+        android:textColor="#00FF00"
+        android:textSize="14sp"
+        android:fontFamily="monospace" />
+
+    <TextView
+        android:id="@+id/twisterLevelText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="0%"
+        android:textColor="#00FF00"
+        android:textSize="20sp"
+        android:fontFamily="monospace" />
+
+    <SeekBar
+        android:id="@+id/twisterSeekBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:max="100"
+        android:progress="0"
+        android:layout_marginBottom="16dp" />
+
+    <!-- INTERRUPTOR 6D -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="20dp">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Efecto 6D (Espacial 360°)"
+            android:textColor="#00FF00"
+            android:textSize="14sp"
+            android:fontFamily="monospace" />
+
+        <Switch
+            android:id="@+id/switch6d"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+    </LinearLayout>
 
     <Button
         android:id="@+id/toggleButton"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="ACTIVAR" />
+        android:text="ACTIVAR"
+        android:layout_marginBottom="12dp" />
 
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="El efecto se aplica a nivel global: pon música en cualquier app (Spotify, YouTube Music, etc.) y ajusta el slider desde aquí."
+        android:text="El efecto se aplica a nivel global: pon música en cualquier app y ajusta los controles desde aquí."
         android:textColor="#4CAF50"
         android:textSize="11sp"
-        android:layout_marginTop="24dp" />
+        android:gravity="center" />
 
 </LinearLayout>
