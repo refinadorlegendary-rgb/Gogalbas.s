@@ -90,14 +90,14 @@ class GlobalBassService : Service() {
                     true,     // enabled
                     90f,      // cutoffFrequency (Antes 120f, ahora respeta la voz)
                     2f,       // attackTime (ms)
-                    100f,     // releaseTime (ms)
+                    120f,     // releaseTime (ms)
                     3.0f,     // ratio
                     -12.0f,   // threshold
                     4.0f,     // kneeWidth
                     0f,       // noiseGateThreshold
                     1f,       // expanderRatio
                     4.0f,     // preGain
-                    19.0f      // postGain (¡Devuelve el volumen al bajo profundo!)
+                    1.1.0f      // postGain (¡Devuelve el volumen al bajo profundo!)
                 )
                 dp.setMbcBandAllChannelsTo(0, mbcBand)
             }
