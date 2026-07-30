@@ -173,7 +173,7 @@ class GlobalBassService : Service() {
         if (usingDynamicsProcessing && dynamicsProcessing != null) {
             val dp = dynamicsProcessing!!
             val subDb = tBass * 42.0f
-            dp.setPreEqBandAllChannelsTo(0, DynamicsProcessing.EqBand(true, 28f, subDb))
+            dp.setPreEqBandAllChannelsTo(0, DynamicsProcessing.EqBand(true, 43f, subDb))
             dp.setPreEqBandAllChannelsTo(1, DynamicsProcessing.EqBand(true, 130f, 0f))
             dp.setPreEqBandAllChannelsTo(2, DynamicsProcessing.EqBand(true, 10000f, tHifi * 12.0f))
             dp.setPreEqBandAllChannelsTo(3, DynamicsProcessing.EqBand(true, 14000f, tTwister * 12.0f))
