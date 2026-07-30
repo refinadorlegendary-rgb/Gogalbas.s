@@ -116,18 +116,20 @@ class GlobalBassService : Service() {
 
             val dp = DynamicsProcessing(0, 0, config)
             for (ch in 0 until channelCount) {
-                dp.setPreEqBandAllChannelsTo(0, DynamicsProcessing.EqBand(true, 35f, 0f))
-                dp.setPreEqBandAllChannelsTo(1, DynamicsProcessing.EqBand(true, 120f, 0f))
+                // Frecuencia ultrabaja de 30Hz para la vibración profunda original
+                dp.setPreEqBandAllChannelsTo(0, DynamicsProcessing.EqBand(true, 30f, 0f))
+                dp.setPreEqBandAllChannelsTo(1, DynamicsProcessing.EqBand(true, 90f, 0f))
                 dp.setPreEqBandAllChannelsTo(2, DynamicsProcessing.EqBand(true, 10000f, 0f))
                 dp.setPreEqBandAllChannelsTo(3, DynamicsProcessing.EqBand(true, 14000f, 0f))
 
+                // Compresor ajustado con mayor suavidad (attack y release amplios) para evitar sonido seco
                 val mbcBand = DynamicsProcessing.MbcBand(
-                    true, 110f, 0.0005f, 0.4f, 18.0f, -20.0f, 18.0f, 0f, 1.2f, 14.0f, 14.0f
+                    true, 90f, 0.01f, 0.5f, 20.0f, -24.0f, 20.0f, 0f, 1.0f, 16.0f, 16.0f
                 )
                 dp.setMbcBandAllChannelsTo(0, mbcBand)
             }
 
-            val limiter = DynamicsProcessing.Limiter(true, true, 1, 1.0f, 40f, 20.0f, -12.0f, 0.0f)
+            val limiter = DynamicsProcessing.Limiter(true, true, 1, 1.0f, 50f, 15.0f, -10.0f, 0.0f)
             for (ch in 0 until channelCount) {
                 dp.setLimiterAllChannelsTo(limiter)
             }
@@ -147,12 +149,10 @@ class GlobalBassService : Service() {
         val tHifi = hifiLevel / 100f
         val tTwister = twisterLevel / 100f
 
-        // 1. Forzar BassBoost al máximo nivel físico del hardware
         try {
             bassBoost?.setStrength((tBass * 1000).toInt().toShort())
         } catch (_: Exception) {}
 
-        // 2. Reforzar múltiples bandas graves y subgraves mediante el Equalizador del sistema
         try {
             equalizer?.let { eq ->
                 val numBands = eq.numberOfBands
@@ -163,27 +163,28 @@ class GlobalBassService : Service() {
                     eq.setBandLevel(0.toShort(), targetLevel)
                     
                     if (numBands > 1) {
-                        eq.setBandLevel(1.toShort(), (targetLevel * 0.8f).toInt().toShort())
+                        // Suavizamos la banda 1 para que el bajo no golpee seco, sino que retumbe profundo
+                        eq.setBandLevel(1.toShort(), (targetLevel * 0.9f).toInt().toShort())
                     }
                     
                     if (numBands > 2) {
-                        eq.setBandLevel(2.toShort(), (targetLevel * 0.4f).toInt().toShort())
+                        eq.setBandLevel(2.toShort(), (targetLevel * 0.5f).toInt().toShort())
                     }
                 }
             }
         } catch (_: Exception) {}
 
-        // 3. Potenciar DynamicsProcessing con curva optimizada para subgraves y vibración extrema
         if (usingDynamicsProcessing && dynamicsProcessing != null) {
             val dp = dynamicsProcessing!!
-            val subDb = tBass * 42.0f 
-            dp.setPreEqBandAllChannelsTo(0, DynamicsProcessing.EqBand(true, 35f, subDb))
-            dp.setPreEqBandAllChannelsTo(1, DynamicsProcessing.EqBand(true, 120f, subDb * 0.6f))
+            // Curva de subgraves extendida y profunda (30Hz)
+            val subDb = tBass * 38.0f 
+            dp.setPreEqBandAllChannelsTo(0, DynamicsProcessing.EqBand(true, 30f, subDb))
+            dp.setPreEqBandAllChannelsTo(1, DynamicsProcessing.EqBand(true, 90f, subDb * 0.7f))
             dp.setPreEqBandAllChannelsTo(2, DynamicsProcessing.EqBand(true, 10000f, tHifi * 14.0f))
             dp.setPreEqBandAllChannelsTo(3, DynamicsProcessing.EqBand(true, 14000f, tTwister * 14.0f))
 
             val mbcBand = DynamicsProcessing.MbcBand(
-                true, 110f, 0.0005f, 0.4f, 18.0f, -20.0f, 18.0f, 0f, 1.2f, 14.0f, 14.0f
+                true, 90f, 0.01f, 0.5f, 20.0f, -24.0f, 20.0f, 0f, 1.0f, 16.0f, 16.0f
             )
             dp.setMbcBandAllChannelsTo(0, mbcBand)
         }
@@ -194,8 +195,8 @@ class GlobalBassService : Service() {
             } catch (_: Exception) {}
         }
 
-        val baseGain = if (bassLevel > 0) (50 - (bassLevel * 0.3f)).toInt() else 50
-        val spatialGainBoost = if (is6dEnabled) 200 else 0 
+        val baseGain = if (bassLevel > 0) (45 - (bassLevel * 0.25f)).toInt() else 45
+        val spatialGainBoost = if (is6dEnabled) 180 else 0 
         try {
             loudnessEnhancer?.setTargetGain(baseGain + spatialGainBoost)
         } catch (_: Exception) {}
