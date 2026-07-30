@@ -21,22 +21,17 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        // Referencias de las 3 barras (SeekBars)
-        const val seekBarBass = findViewById<SeekBar>(R.id.bassSeekBar)
-        const val seekBarHifi = findViewById<SeekBar>(R.id.hifiSeekBar)
-        const val seekBarTwister = findViewById<SeekBar>(R.id.twisterSeekBar)
+        val seekBarBass = findViewById<SeekBar>(R.id.bassSeekBar)
+        val seekBarHifi = findViewById<SeekBar>(R.id.hifiSeekBar)
+        val seekBarTwister = findViewById<SeekBar>(R.id.twisterSeekBar)
 
-        // Textos de porcentaje para cada barra
-        const val textBassLevel = findViewById<TextView>(R.id.levelText)
-        const val textHifiLevel = findViewById<TextView>(R.id.hifiLevelText)
-        const val textTwisterLevel = findViewById<TextView>(R.id.twisterLevelText)
+        val textBassLevel = findViewById<TextView>(R.id.levelText)
+        val textHifiLevel = findViewById<TextView>(R.id.hifiLevelText)
+        val textTwisterLevel = findViewById<TextView>(R.id.twisterLevelText)
 
-        // Estado y Botón de servicio general
-        const val statusText = findViewById<TextView>(R.id.statusText)
-        const val toggleButton = findViewById<Button>(R.id.toggleButton)
-
-        // Interruptor para 6D (Puedes cambiar a Button si en tu XML usas un botón)
-        const val switch6d = findViewById<Switch>(R.id.switch6d)
+        val statusText = findViewById<TextView>(R.id.statusText)
+        val toggleButton = findViewById<Button>(R.id.toggleButton)
+        val switch6d = findViewById<Switch>(R.id.switch6d)
 
         requestNotificationPermissionIfNeeded()
 
@@ -46,7 +41,6 @@ class MainActivity : AppCompatActivity() {
                 serviceRunning = true
                 statusText.text = "Servicio activo (global)"
                 toggleButton.text = "DESACTIVAR"
-                // Enviar valores actuales al arrancar
                 sendBassLevel(seekBarBass.progress)
                 sendHifiLevel(seekBarHifi.progress)
                 sendTwisterLevel(seekBarTwister.progress)
@@ -59,7 +53,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // Listener para Bajo Profundo
         seekBarBass.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(sb: SeekBar?, progress: Int, fromUser: Boolean) {
                 textBassLevel.text = "$progress%"
@@ -69,7 +62,6 @@ class MainActivity : AppCompatActivity() {
             override fun onStopTrackingTouch(sb: SeekBar?) {}
         })
 
-        // Listener para Hi-Fi
         seekBarHifi.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(sb: SeekBar?, progress: Int, fromUser: Boolean) {
                 textHifiLevel.text = "$progress%"
@@ -79,7 +71,6 @@ class MainActivity : AppCompatActivity() {
             override fun onStopTrackingTouch(sb: SeekBar?) {}
         })
 
-        // Listener para Twister
         seekBarTwister.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(sb: SeekBar?, progress: Int, fromUser: Boolean) {
                 textTwisterLevel.text = "$progress%"
@@ -89,7 +80,6 @@ class MainActivity : AppCompatActivity() {
             override fun onStopTrackingTouch(sb: SeekBar?) {}
         })
 
-        // Listener para el interruptor 6D
         switch6d.setOnCheckedChangeListener { _, isChecked ->
             if (serviceRunning) {
                 send6dToggle(isChecked)
