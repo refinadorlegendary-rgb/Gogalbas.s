@@ -104,25 +104,25 @@ class GlobalBassService : Service() {
             val dp = DynamicsProcessing(0, 0, config)
 
             for (ch in 0 until channelCount) {
-                // Inicialización neutral de las 4 bandas
-                dp.setPreEqBandAllChannelsTo(0, DynamicsProcessing.EqBand(true, 40f, 0f))
+                // Inicialización neutral de las 4 bandas (Bajo en 35Hz para máxima vibración)
+                dp.setPreEqBandAllChannelsTo(0, DynamicsProcessing.EqBand(true, 35f, 0f))
                 dp.setPreEqBandAllChannelsTo(1, DynamicsProcessing.EqBand(true, 2500f, 3.5f))
                 dp.setPreEqBandAllChannelsTo(2, DynamicsProcessing.EqBand(true, 8000f, 0f))
                 dp.setPreEqBandAllChannelsTo(3, DynamicsProcessing.EqBand(true, 14000f, 0f))
 
-                // Compresor multibanda optimizado para bajo profundo y vibratorio sin distorsión en voz
+                // Compresor multibanda optimizado para un bajo ultra profundo, vibratorio y limpio
                 val mbcBand = DynamicsProcessing.MbcBand(
                     true,     // enabled
-                    90f,      // cutoffFrequency (protege la voz humana)
-                    1.5f,     // attackTime (ms)
-                    120f,     // releaseTime (ms) - mayor sustain para efecto vibratorio
-                    3.0f,     // ratio
-                    -13.0f,   // threshold
+                    95f,      // cutoffFrequency (protege la voz humana de forma impecable)
+                    1.0f,     // attackTime rápido para pegada inmediata
+                    140f,     // releaseTime largo para mantener el sustain y la sensación de vibración
+                    3.5f,     // ratio
+                    -15.0f,   // threshold sensible para atrapar los subgraves
                     4.0f,     // kneeWidth
                     0f,       // noiseGateThreshold
                     1f,       // expanderRatio
-                    3.5f,     // preGain para inyectar cuerpo profundo
-                    5.0f      // postGain para redondear el subgrave limpiamente
+                    5.0f,     // preGain alto para inyectar cuerpo profundo
+                    7.5f      // postGain elevado para mayor presión sonora limpia
                 )
                 dp.setMbcBandAllChannelsTo(0, mbcBand)
             }
@@ -133,10 +133,10 @@ class GlobalBassService : Service() {
                 true,   // linked
                 1,      // linkGroup
                 1.0f,   // attackTime (ms)
-                50f,    // releaseTime (ms)
-                12.0f,  // ratio
-                -1.5f,  // threshold de seguridad óptimo
-                0.2f    // postGain
+                40f,    // releaseTime (ms)
+                15.0f,  // ratio estricto
+                -1.0f,  // threshold de seguridad cercano a 0 para maximizar volumen
+                0.5f    // postGain
             )
             for (ch in 0 until channelCount) {
                 dp.setLimiterAllChannelsTo(limiter)
@@ -171,19 +171,19 @@ class GlobalBassService : Service() {
         if (usingDynamicsProcessing && dynamicsProcessing != null) {
             val dp = dynamicsProcessing!!
 
-            // 1. Barra de Bajo Profundo (Banda 0: Subgraves masivos y vibratorios)
-            val subDb = tBass * 18.0f 
-            dp.setPreEqBandAllChannelsTo(0, DynamicsProcessing.EqBand(true, 40f, subDb))
+            // 1. Barra de Bajo Profundo (Banda 0: Subgraves masivos y vibratorios hasta 22dB)
+            val subDb = tBass * 22.0f 
+            dp.setPreEqBandAllChannelsTo(0, DynamicsProcessing.EqBand(true, 35f, subDb))
             
             // Banda 1: Claridad de voz protegida y limpia constante
             dp.setPreEqBandAllChannelsTo(1, DynamicsProcessing.EqBand(true, 2500f, 3.5f))
 
             // 2. Barra Hi-Fi (Banda 2: Brillo cristalino y alta fidelidad en agudos)
-            val hifiDb = tHifi * 10.0f
+            val hifiDb = tHifi * 12.0f
             dp.setPreEqBandAllChannelsTo(2, DynamicsProcessing.EqBand(true, 8000f, hifiDb))
 
             // 3. Barra Twister (Banda 3: Presencia envolvente y agudos extremos)
-            val twisterDb = tTwister * 12.0f
+            val twisterDb = tTwister * 14.0f
             dp.setPreEqBandAllChannelsTo(3, DynamicsProcessing.EqBand(true, 14000f, twisterDb))
 
         } else {
@@ -197,7 +197,7 @@ class GlobalBassService : Service() {
         }
 
         // Gestión de ganancia y simulación del modo 6D (Inmersión espacial 360°)
-        val baseAttenuation = if (bassLevel > 0 || hifiLevel > 0 || twisterLevel > 0) (- (tBass * 150)).toInt() else 0
+        val baseAttenuation = if (bassLevel > 0 || hifiLevel > 0 || twisterLevel > 0) (- (tBass * 100)).toInt() else 0
         val spatialGainBoost = if (is6dEnabled) 150 else 0 
         loudnessEnhancer?.setTargetGain(baseAttenuation + spatialGainBoost)
 
