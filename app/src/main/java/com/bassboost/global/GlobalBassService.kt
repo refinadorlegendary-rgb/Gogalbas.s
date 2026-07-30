@@ -18,8 +18,15 @@ class GlobalBassService : Service() {
     companion object {
         const val CHANNEL_ID = "global_bass_boost_channel"
         const val NOTIF_ID = 1
-        const val ACTION_SET_LEVEL = "com.bassboost.global.SET_LEVEL"
+        
+        // Acciones para cada control deslizante y el interruptor 6D
+        const val ACTION_SET_BASS_LEVEL = "com.bassboost.global.SET_BASS_LEVEL"
+        const val ACTION_SET_HIFI_LEVEL = "com.bassboost.global.SET_HIFI_LEVEL"
+        const val ACTION_SET_TWISTER_LEVEL = "com.bassboost.global.SET_TWISTER_LEVEL"
+        const val ACTION_SET_6D_TOGGLE = "com.bassboost.global.SET_6D_TOGGLE"
+
         const val EXTRA_LEVEL = "level" // 0..100
+        const val EXTRA_ENABLED = "enabled" // true..false
     }
 
     private var dynamicsProcessing: DynamicsProcessing? = null
@@ -27,20 +34,39 @@ class GlobalBassService : Service() {
     private var equalizer: Equalizer? = null
     private var loudnessEnhancer: LoudnessEnhancer? = null
     private var usingDynamicsProcessing = false
-    private var currentLevel = 0 // Arranca estrictamente en 0
+
+    // Niveles independientes (arrancan en 0)
+    private var bassLevel = 0
+    private var hifiLevel = 0
+    private var twisterLevel = 0
+    private var is6dEnabled = false
 
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
         startForeground(NOTIF_ID, buildNotification())
         setupGlobalEffectChain()
-        applyBassLevel(0)
+        applyAllEffects()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == ACTION_SET_LEVEL) {
-            val level = intent.getIntExtra(EXTRA_LEVEL, 0)
-            applyBassLevel(level)
+        when (intent?.action) {
+            ACTION_SET_BASS_LEVEL -> {
+                bassLevel = intent.getIntExtra(EXTRA_LEVEL, 0).coerceIn(0, 100)
+                applyAllEffects()
+            }
+            ACTION_SET_HIFI_LEVEL -> {
+                hifiLevel = intent.getIntExtra(EXTRA_LEVEL, 0).coerceIn(0, 100)
+                applyAllEffects()
+            }
+            ACTION_SET_TWISTER_LEVEL -> {
+                twisterLevel = intent.getIntExtra(EXTRA_LEVEL, 0).coerceIn(0, 100)
+                applyAllEffects()
+            }
+            ACTION_SET_6D_TOGGLE -> {
+                is6dEnabled = intent.getBooleanExtra(EXTRA_ENABLED, false)
+                applyAllEffects()
+            }
         }
         return START_STICKY
     }
@@ -65,10 +91,11 @@ class GlobalBassService : Service() {
     private fun trySetupDynamicsProcessing(): Boolean {
         return try {
             val channelCount = 2
+            // Configuramos 4 bandas PreEq para manejar Bajos, Voz, Hi-Fi y Twister de forma independiente
             val config = DynamicsProcessing.Config.Builder(
                 DynamicsProcessing.VARIANT_FAVOR_FREQUENCY_RESOLUTION,
                 channelCount,
-                true, 2,   // 2 bandas PreEq: Banda 0 (Sub-graves 45Hz), Banda 1 (Claridad de voz 2500Hz)
+                true, 4,   // 4 bandas PreEq: [0] SubBass, [1] Voz, [2] HiFi, [3] Twister
                 true, 1,   // mbc activo
                 false, 0,  
                 true       // limiter activo
@@ -77,41 +104,39 @@ class GlobalBassService : Service() {
             val dp = DynamicsProcessing(0, 0, config)
 
             for (ch in 0 until channelCount) {
-                // Banda 0: Inicia neutral (0dB) en 45Hz
-                val subBassBand = DynamicsProcessing.EqBand(true, 45f, 0f)
-                dp.setPreEqBandAllChannelsTo(0, subBassBand)
+                // Inicialización neutral de las 4 bandas
+                dp.setPreEqBandAllChannelsTo(0, DynamicsProcessing.EqBand(true, 40f, 0f))
+                dp.setPreEqBandAllChannelsTo(1, DynamicsProcessing.EqBand(true, 2500f, 3.5f))
+                dp.setPreEqBandAllChannelsTo(2, DynamicsProcessing.EqBand(true, 8000f, 0f))
+                dp.setPreEqBandAllChannelsTo(3, DynamicsProcessing.EqBand(true, 14000f, 0f))
 
-                // Banda 1: Ganancia fija para mantener la voz clara y limpia
-                val voiceClarityBand = DynamicsProcessing.EqBand(true, 2500f, 3.5f)
-                dp.setPreEqBandAllChannelsTo(1, voiceClarityBand)
-
-                // CORREGIDO: Frecuencia de corte baja (85Hz) para no tragar la voz, con postGain para recuperar volumen
+                // Compresor multibanda optimizado para bajo profundo y vibratorio sin distorsión en voz
                 val mbcBand = DynamicsProcessing.MbcBand(
                     true,     // enabled
-                    90f,      // cutoffFrequency (Antes 120f, ahora respeta la voz)
-                    2f,       // attackTime (ms)
-                    120f,     // releaseTime (ms)
+                    90f,      // cutoffFrequency (protege la voz humana)
+                    1.5f,     // attackTime (ms)
+                    120f,     // releaseTime (ms) - mayor sustain para efecto vibratorio
                     3.0f,     // ratio
-                    -12.0f,   // threshold
+                    -13.0f,   // threshold
                     4.0f,     // kneeWidth
                     0f,       // noiseGateThreshold
                     1f,       // expanderRatio
-                    4.0f,     // preGain
-                    1.1.0f      // postGain (¡Devuelve el volumen al bajo profundo!)
+                    3.5f,     // preGain para inyectar cuerpo profundo
+                    5.0f      // postGain para redondear el subgrave limpiamente
                 )
                 dp.setMbcBandAllChannelsTo(0, mbcBand)
             }
 
-            // CORREGIDO: Limiter de seguridad optimizado para evitar distorsión y chasquidos
+            // Limitador de seguridad robusto contra picos e intermodulaciones
             val limiter = DynamicsProcessing.Limiter(
                 true,   // enabled
                 true,   // linked
                 1,      // linkGroup
                 1.0f,   // attackTime (ms)
-                60f,    // releaseTime (ms)
-                10.0f,  // ratio (más musical que 20:1)
-                -2.0f,  // threshold de seguridad (más cercano a 0 para no apagar el sonido)
-                0.5f    // postGain
+                50f,    // releaseTime (ms)
+                12.0f,  // ratio
+                -1.5f,  // threshold de seguridad óptimo
+                0.2f    // postGain
             )
             for (ch in 0 until channelCount) {
                 dp.setLimiterAllChannelsTo(limiter)
@@ -138,20 +163,31 @@ class GlobalBassService : Service() {
         }
     }
 
-    private fun applyBassLevel(level: Int) {
-        currentLevel = level.coerceIn(0, 100)
-        val t = currentLevel / 100f
+    private fun applyAllEffects() {
+        val tBass = bassLevel / 100f
+        val tHifi = hifiLevel / 100f
+        val tTwister = twisterLevel / 100f
 
         if (usingDynamicsProcessing && dynamicsProcessing != null) {
             val dp = dynamicsProcessing!!
-            val subDb = t * 12.0f 
-            val subBassBand = DynamicsProcessing.EqBand(true, 45f, subDb)
-            dp.setPreEqBandAllChannelsTo(0, subBassBand)
+
+            // 1. Barra de Bajo Profundo (Banda 0: Subgraves masivos y vibratorios)
+            val subDb = tBass * 18.0f 
+            dp.setPreEqBandAllChannelsTo(0, DynamicsProcessing.EqBand(true, 40f, subDb))
             
-            val voiceClarityBand = DynamicsProcessing.EqBand(true, 2500f, 3.5f)
-            dp.setPreEqBandAllChannelsTo(1, voiceClarityBand)
+            // Banda 1: Claridad de voz protegida y limpia constante
+            dp.setPreEqBandAllChannelsTo(1, DynamicsProcessing.EqBand(true, 2500f, 3.5f))
+
+            // 2. Barra Hi-Fi (Banda 2: Brillo cristalino y alta fidelidad en agudos)
+            val hifiDb = tHifi * 10.0f
+            dp.setPreEqBandAllChannelsTo(2, DynamicsProcessing.EqBand(true, 8000f, hifiDb))
+
+            // 3. Barra Twister (Banda 3: Presencia envolvente y agudos extremos)
+            val twisterDb = tTwister * 12.0f
+            dp.setPreEqBandAllChannelsTo(3, DynamicsProcessing.EqBand(true, 14000f, twisterDb))
+
         } else {
-            bassBoost?.setStrength((t * 800).toInt().toShort())
+            bassBoost?.setStrength((tBass * 1000).toInt().toShort())
         }
 
         if (loudnessEnhancer == null) {
@@ -159,8 +195,11 @@ class GlobalBassService : Service() {
                 loudnessEnhancer = LoudnessEnhancer(0).apply { enabled = true }
             } catch (_: Exception) {}
         }
-        val attenuationMb = if (currentLevel > 0) (-t * 200).toInt() else 0
-        loudnessEnhancer?.setTargetGain(attenuationMb)
+
+        // Gestión de ganancia y simulación del modo 6D (Inmersión espacial 360°)
+        val baseAttenuation = if (bassLevel > 0 || hifiLevel > 0 || twisterLevel > 0) (- (tBass * 150)).toInt() else 0
+        val spatialGainBoost = if (is6dEnabled) 150 else 0 
+        loudnessEnhancer?.setTargetGain(baseAttenuation + spatialGainBoost)
 
         updateNotification()
     }
@@ -185,9 +224,10 @@ class GlobalBassService : Service() {
     }
 
     private fun buildNotification(): Notification {
+        val status6d = if (is6dEnabled) "ON" else "OFF"
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Deep Bass Pro activo")
-            .setContentText("Bajo profundo: $currentLevel%")
+            .setContentTitle("Deep Bass Pro + 6D HIFI Activo")
+            .setContentText("Bajo: $bassLevel% | HiFi: $hifiLevel% | Twister: $twisterLevel% | 6D: $status6d")
             .setSmallIcon(android.R.drawable.ic_media_play)
             .setOngoing(true)
             .build()
